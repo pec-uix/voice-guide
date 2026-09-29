@@ -42,3 +42,4 @@ next-env.d.ts
 
 # one-off migration scripts
 run-schema.mjs
+seed-demo.mjs
