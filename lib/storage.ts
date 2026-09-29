@@ -1,22 +1,37 @@
-// R2 audio upload — requires R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_ENDPOINT
-// Stage 6: fill in credentials and uncomment the real upload logic
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 export async function uploadAudio(
-  _buffer: Buffer,
-  _filename: string,
-  _contentType: string,
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
 ): Promise<{ url: string } | { error: string }> {
-  if (
-    !process.env.R2_ACCESS_KEY_ID ||
-    !process.env.R2_SECRET_ACCESS_KEY ||
-    !process.env.R2_BUCKET
-  ) {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const bucket = process.env.R2_BUCKET;
+  const publicUrl = process.env.R2_PUBLIC_URL;
+
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) {
     return { error: 'R2 credentials not configured' };
   }
 
-  // TODO stage 6: implement S3-compatible upload to Cloudflare R2
-  // const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-  // const client = new S3Client({ ... });
-  // await client.send(new PutObjectCommand({ ... }));
-  return { error: 'R2 upload not yet implemented' };
+  try {
+    const client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId, secretAccessKey },
+    });
+
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: filename,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+
+    return { url: `${publicUrl.replace(/\/$/, '')}/${filename}` };
+  } catch (err) {
+    console.error('R2 upload error:', err);
+    return { error: 'Upload failed' };
+  }
 }

@@ -22,7 +22,7 @@ const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English', j
 
 const BASE_URL = typeof window !== 'undefined'
   ? window.location.origin
-  : process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
+  : process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
 
 function segmentsToText(segs: Segment[]) {
   return segs.map(s => `${s.start_time},${s.end_time},${s.texts.find(t => t.language_code === 'zh-TW')?.text ?? ''}`).join('\n');

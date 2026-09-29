@@ -15,6 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <span className="text-sm font-semibold text-zinc-900 mr-3">語音導覽後台</span>
             <NavLink href="/admin/exhibitions">展覽</NavLink>
             <NavLink href="/admin/artworks">作品</NavLink>
+            <NavLink href="/admin/dashboard">數據</NavLink>
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-400 hidden sm:block">
