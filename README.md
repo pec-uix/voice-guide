@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 開工包｜語音導覽小工具
 
-## Getting Started
+四份文件，帶去給 Claude Code CLI 就能開始。
 
-First, run the development server:
+## 這個資料夾裡有什麼
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+| 檔案 | 用途 |
+|---|---|
+| `CLAUDE.md` | 專案完整定義：目標、技術棧、架構、資料模型、路線、開發階段、帳號費用規劃。Claude Code 每次開工前都要先讀這份 |
+| `schema.sql` | 資料庫結構（Postgres，給 Neon 用），照 `CLAUDE.md` 階段 1 執行 |
+| `whisper-transcript-guide.md` | 音檔轉逐字稿＋時間戳記的操作流程，跟開發平行進行，不擋路 |
+| `account-setup-guide.md` | Cloudflare、Neon、Google Cloud 三個服務的申請步驟（Gemini API 金鑰申請步驟包含在 Google Cloud 那節） |
+| `README.md` | 這份文件，總覽和開工檢查清單 |
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Repo
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+https://github.com/pec-uix/voice-guide.git ，本機工作目錄 `/Users/minashih/voice-guide`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 目前的關鍵決定（如果之後想法變了，回頭改 `CLAUDE.md`）
 
-## Learn More
+- 技術棧：Cloudflare Pages + Neon + Cloudflare R2 + Gemini API，$0/月，合法商用，且都不需要信用卡
+- 支援**兩種 QR Code**：展覽入口（看作品清單）跟單一作品（直接進介紹頁），各自獨立路線
+- 音檔僅保留中文原音，其他語言只做文字翻譯，不做語音轉換配音
+- 逐字稿分段＋時間戳記，播放時同步反白目前讀到哪一段
+- 英文／日文文字用 Gemini API 自動產生翻譯草稿（不需要信用卡，金鑰在 Google AI Studio 免費申請），後台標記「待校對」，人工確認過才算定稿
+- 購買連結每件作品各自一個（放作品頁），評價連結整個展覽共用一個（只放展覽總覽頁）
+- 購買／評價連結都用開新分頁方式開啟，不導離原本頁面
+- **後台用 Google 登入＋email 白名單**，不用自己存密碼；後台一定要是展覽方能自己上網操作的介面
+- 帳號（Cloudflare、Neon、Google Cloud OAuth 專案）都要開在展覽方名下，開發者以協作者身分加入
+- 有基本的無障礙設計要求、資料驗證、外部服務容錯機制（見 `CLAUDE.md` 第 10、11 節）
+- Firebase Hosting（公司網域）先不做，之後真的需要再拆分（做法已記錄在 `CLAUDE.md` 第 2 節）
 
-To learn more about Next.js, take a look at the following resources:
+## 開工檢查清單
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- [ ] 把這五份文件放進 repo 根目錄
+- [ ] 照 `account-setup-guide.md` 申請 Cloudflare、Neon、Google Cloud 帳號（先用開發者自己的帳號即可，交接前再轉移；Gemini API 金鑰在 Google AI Studio 免費申請，同樣不用綁卡）
+- [ ] 在專案目錄跑 `claude`，貼下面那句開工指令
+- [ ] 音檔逐字稿製作（`whisper-transcript-guide.md`）可以跟開發同時進行，不互相卡進度
+- [ ] 每完成一個開發階段，回 `CLAUDE.md` 第 9 節把進度勾起來
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 給 Claude Code 的第一句話
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> 讀一下 CLAUDE.md 和 schema.sql，跟我確認你理解的專案範圍和技術棧，然後我們從階段 0（開帳號、建 repo）開始，一步一步做，每個階段做完要跟我確認過我再往下一步。
