@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: row?.name ? `${row.name} | 語音導覽` : '語音導覽' };
 }
 
-const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en', 'ja'];
+const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en'];
 
 export default async function ExhibitionPage({ params, searchParams }: Props) {
   const { code } = await params;

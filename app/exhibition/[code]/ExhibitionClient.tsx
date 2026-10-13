@@ -37,14 +37,12 @@ interface Props {
 const LANGS = [
   { code: 'zh-TW' as LanguageCode, label: '中文' },
   { code: 'en' as LanguageCode, label: 'EN' },
-  { code: 'ja' as LanguageCode, label: '日本語' },
 ];
 
 export default function ExhibitionClient({ exhibition, artworks, translations, initialLang }: Props) {
   const [lang, setLang] = useState<LanguageCode>(initialLang);
   const scanRecorded = useRef(false);
 
-  // Record exhibition scan once
   useEffect(() => {
     if (scanRecorded.current) return;
     scanRecorded.current = true;
@@ -70,18 +68,18 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-xl mx-auto px-5 py-8 pb-20">
+      <div className="max-w-xl mx-auto px-6 pt-10 pb-24">
 
         {/* Language switcher */}
-        <div className="flex gap-2 mb-8">
+        <div className="flex justify-end gap-4 mb-10">
           {LANGS.map((l) => (
             <button
               key={l.code}
               onClick={() => setLang(l.code)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              className={`text-xs tracking-wider transition-colors pb-0.5 ${
                 lang === l.code
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'text-zinc-500 border-zinc-300 hover:border-zinc-700 hover:text-zinc-700'
+                  ? 'text-zinc-900 border-b border-zinc-900'
+                  : 'text-zinc-400 hover:text-zinc-600'
               }`}
             >
               {l.label}
@@ -89,62 +87,71 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
           ))}
         </div>
 
-        {/* Exhibition name */}
-        <h1 className="text-2xl font-bold text-zinc-900 mb-2">{exhibition.name}</h1>
-        {exhibition.description && (
-          <p className="text-zinc-500 text-sm mb-8 leading-relaxed">{exhibition.description}</p>
-        )}
+        {/* Exhibition header */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold text-zinc-900 leading-tight mb-3">
+            {exhibition.name}
+          </h1>
+          {exhibition.description && (
+            <p className="text-zinc-500 text-sm leading-relaxed">{exhibition.description}</p>
+          )}
+        </div>
 
-        {/* Works heading */}
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-4">
+        <div className="border-t border-zinc-100 mb-8" />
+
+        {/* Works label */}
+        <p className="text-xs text-zinc-400 tracking-widest uppercase mb-6">
           {t('works', lang)}
-        </h2>
+        </p>
 
         {/* Artwork grid */}
         {artworks.length === 0 ? (
-          <p className="text-zinc-400 text-sm py-8 text-center">尚無作品</p>
+          <p className="text-zinc-400 text-sm py-16 text-center">尚無作品</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 mb-10">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-8 mb-12">
             {artworks.map((aw) => (
               <Link
                 key={aw.id}
                 href={`/artwork/${aw.code}?lang=${lang}`}
-                className="group block rounded-xl overflow-hidden border border-zinc-100 hover:border-zinc-300 transition-colors"
+                className="group block"
               >
-                {aw.cover_image_url ? (
-                  <img
-                    src={aw.cover_image_url}
-                    alt={getTitle(aw.id)}
-                    className="w-full aspect-square object-cover"
-                  />
-                ) : (
-                  <div className="w-full aspect-square bg-zinc-100 flex items-center justify-center">
-                    <span className="text-zinc-300 text-3xl">♪</span>
-                  </div>
-                )}
-                <div className="p-3">
-                  <p className="text-sm font-medium text-zinc-900 leading-snug line-clamp-2">
-                    {getTitle(aw.id)}
-                  </p>
-                  {aw.artist && (
-                    <p className="text-xs text-zinc-400 mt-1">{aw.artist}</p>
+                {/* Image */}
+                <div className="w-full overflow-hidden mb-3" style={{ aspectRatio: '3/4' }}>
+                  {aw.cover_image_url ? (
+                    <img
+                      src={aw.cover_image_url}
+                      alt={getTitle(aw.id)}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-zinc-100 flex items-center justify-center">
+                      <span className="text-zinc-300 text-3xl">♪</span>
+                    </div>
                   )}
                 </div>
+
+                {/* Text */}
+                <p className="text-xs text-zinc-400 mb-1 tracking-wider">
+                  {aw.artist ?? ''}
+                </p>
+                <p className="text-sm font-medium text-zinc-900 leading-snug line-clamp-2 group-hover:underline underline-offset-2 transition-all">
+                  {getTitle(aw.id)}
+                </p>
               </Link>
             ))}
           </div>
         )}
 
-        {/* Review button — exhibition level, at bottom */}
+        {/* Review button */}
         {exhibition.review_url && (
           <a
             href={exhibition.review_url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleReviewClick}
-            className="block w-full text-center border-2 border-zinc-900 text-zinc-900 py-4 rounded-2xl font-medium text-base hover:bg-zinc-50 transition-colors active:opacity-80"
+            className="block w-full text-center border border-zinc-900 text-zinc-900 py-4 text-sm font-medium tracking-wider hover:bg-zinc-900 hover:text-white transition-colors"
           >
-            {t('review', lang)}
+            {t('review', lang)} ↗
           </a>
         )}
       </div>

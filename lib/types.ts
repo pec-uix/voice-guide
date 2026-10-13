@@ -1,5 +1,5 @@
-export type LanguageCode = 'zh-TW' | 'en' | 'ja';
-export const LANGUAGE_CODES: LanguageCode[] = ['zh-TW', 'en', 'ja'];
+export type LanguageCode = 'zh-TW' | 'en';
+export const LANGUAGE_CODES: LanguageCode[] = ['zh-TW', 'en'];
 
 export interface Exhibition {
   id: string;

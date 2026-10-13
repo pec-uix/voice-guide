@@ -1,10 +1,10 @@
-import { signIn } from '@/auth';
+import { auth, signIn } from '@/auth';
+import { redirect } from 'next/navigation';
 
-export default function AdminLoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default async function AdminLoginPage() {
+  const session = await auth();
+  if (session) redirect('/admin/exhibitions');
+
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-zinc-100 p-8">

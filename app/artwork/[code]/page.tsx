@@ -28,7 +28,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   return { title: row?.title ? `${row.title} | 語音導覽` : '語音導覽', alternates: { canonical: `/artwork/${code}?lang=${lang}` } };
 }
 
-const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en', 'ja'];
+const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en'];
 
 export default async function ArtworkPage({ params, searchParams }: Props) {
   const { code } = await params;

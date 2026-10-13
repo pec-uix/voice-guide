@@ -8,14 +8,16 @@
     "start": "next start",
     "lint": "eslint",
     "build:cloudflare": "opennextjs-cloudflare build",
-    "preview": "opennextjs-cloudflare build && wrangler pages dev",
-    "deploy": "opennextjs-cloudflare build && wrangler pages deploy"
+    "preview": "opennextjs-cloudflare build && wrangler dev",
+    "deploy": "opennextjs-cloudflare build && wrangler deploy"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1142.0",
     "@neondatabase/serverless": "^1.1.0",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.6",
+    "cloudinary": "^2.11.0",
+    "groq-sdk": "^1.6.0",
+    "msedge-tts": "^2.0.9",
     "next": "16.3.6",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.0",

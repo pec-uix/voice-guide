@@ -31,8 +31,8 @@ interface Props {
   exhibitionStats: ExhibitionRow[];
 }
 
-const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English', ja: '日本語' };
-const LANG_COLORS = ['#18181b', '#6366f1', '#f59e0b'];
+const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English' };
+const LANG_COLORS = ['#18181b', '#6366f1'];
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (

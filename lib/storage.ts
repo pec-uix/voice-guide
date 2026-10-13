@@ -1,37 +1,42 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { v2 as cloudinary } from 'cloudinary';
+
+function configure() {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
 
 export async function uploadAudio(
   buffer: Buffer,
   filename: string,
   contentType: string,
 ): Promise<{ url: string } | { error: string }> {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET;
-  const publicUrl = process.env.R2_PUBLIC_URL;
-
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicUrl) {
-    return { error: 'R2 credentials not configured' };
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return { error: 'Cloudinary credentials not configured' };
   }
 
+  configure();
+
+  // Strip extension — Cloudinary manages its own format/extension
+  const publicId = filename.replace(/\.[^/.]+$/, '');
+
   try {
-    const client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-      credentials: { accessKeyId, secretAccessKey },
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', public_id: publicId },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('No result'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
     });
 
-    await client.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: filename,
-      Body: buffer,
-      ContentType: contentType,
-    }));
-
-    return { url: `${publicUrl.replace(/\/$/, '')}/${filename}` };
+    return { url: result.secure_url };
   } catch (err) {
-    console.error('R2 upload error:', err);
+    console.error('Cloudinary upload error:', err);
     return { error: 'Upload failed' };
   }
 }

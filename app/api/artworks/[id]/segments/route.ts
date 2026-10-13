@@ -90,8 +90,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         RETURNING *
       `;
 
-      // Auto-translate segment text
-      const { en, ja } = await translateBoth(seg.text);
+      // Auto-translate segment text to English
+      const { en } = await translateBoth(seg.text);
       const otherTexts = [];
 
       if (en) {
@@ -101,14 +101,6 @@ export async function POST(req: NextRequest, { params }: Params) {
           RETURNING *
         `;
         otherTexts.push(enText);
-      }
-      if (ja) {
-        const [jaText] = await sql`
-          INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
-          VALUES (${segment.id}, 'ja', ${ja}, false)
-          RETURNING *
-        `;
-        otherTexts.push(jaText);
       }
 
       results.push({ ...segment, texts: [zhText, ...otherTexts] });

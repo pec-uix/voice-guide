@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const file = formData.get('audio') as File | null;
     if (!file) return NextResponse.json({ error: 'audio file is required' }, { status: 400 });
 
-    const allowed = ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm'];
+    const allowed = ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm', 'audio/x-m4a', 'audio/m4a'];
     if (!allowed.includes(file.type)) {
       return NextResponse.json(
         { error: `Unsupported file type: ${file.type}` },
@@ -31,10 +31,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: result.error }, { status: 503 });
     }
 
-    // Save audio_url to zh-TW translation
+    const langParam = (formData.get('lang') as string) || 'zh-TW';
+    const langCode = langParam === 'en' ? 'en' : 'zh-TW';
+
     const [translation] = await sql`
       INSERT INTO artwork_translations (artwork_id, language_code, title, audio_url, is_reviewed)
-      VALUES (${id}, 'zh-TW', '', ${result.url}, true)
+      VALUES (${id}, ${langCode}, '', ${result.url}, ${langCode === 'zh-TW'})
       ON CONFLICT (artwork_id, language_code) DO UPDATE SET
         audio_url = EXCLUDED.audio_url, updated_at = now()
       RETURNING *

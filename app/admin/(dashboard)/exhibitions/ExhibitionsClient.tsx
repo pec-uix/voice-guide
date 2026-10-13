@@ -15,6 +15,16 @@ interface Exhibition {
   created_at: string;
 }
 
+interface ImportedArtwork {
+  productId?: number;
+  title: string;
+  artist?: string;
+  year?: string;
+  description?: string;
+  imageUrl?: string;
+  purchaseUrl?: string;
+}
+
 interface Props {
   exhibitions: Exhibition[];
 }
@@ -37,12 +47,73 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const openCreate = () => { setEditId(null); setForm(emptyForm()); setError(''); setShowForm(true); };
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importedArtworks, setImportedArtworks] = useState<ImportedArtwork[] | null>(null);
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [batchSuccess, setBatchSuccess] = useState('');
+
+  const resetImport = () => {
+    setImportUrl('');
+    setImportError('');
+    setImportedArtworks(null);
+    setBatchSuccess('');
+  };
+
+  const openCreate = () => {
+    setEditId(null); setForm(emptyForm()); setError(''); setShowForm(true);
+    resetImport();
+  };
   const openEdit = (ex: Exhibition) => {
     setEditId(ex.id);
     setForm({ code: ex.code, name: ex.name, description: ex.description ?? '', review_url: ex.review_url ?? '' });
     setError('');
     setShowForm(true);
+    resetImport();
+  };
+
+  const handleImportUrl = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true); setImportError(''); setImportedArtworks(null); setBatchSuccess('');
+    try {
+      const res = await fetch('/api/exhibitions/import-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setImportError(json.error ?? '匯入失敗'); return; }
+      const d = json.data;
+      if (d.name) setForm(f => ({ ...f, name: d.name }));
+      if (d.description) setForm(f => ({ ...f, description: d.description }));
+      if (d.artworks?.length) setImportedArtworks(d.artworks);
+    } catch { setImportError('網路錯誤'); }
+    finally { setImporting(false); }
+  };
+
+  const handleBatchImport = async () => {
+    if (!form.code.trim() || !form.name.trim()) { setError('請先填入展覽代碼和名稱'); return; }
+    setBatchSaving(true); setError('');
+    try {
+      const res = await fetch('/api/exhibitions/batch-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: form.code.trim(),
+          name: form.name.trim(),
+          description: form.description || null,
+          artworks: importedArtworks,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? '批次建立失敗'); return; }
+      setBatchSuccess(`已建立展覽「${form.name}」及 ${json.data.artworksCreated} 件作品`);
+      setShowForm(false);
+      resetImport();
+      router.refresh();
+    } catch { setError('網路錯誤'); }
+    finally { setBatchSaving(false); }
   };
 
   const handleSave = async () => {
@@ -81,12 +152,60 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
         <button onClick={openCreate} className="btn-primary">＋ 新增展覽</button>
       </div>
 
+      {batchSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-green-800 text-sm">
+          ✓ {batchSuccess}
+        </div>
+      )}
+
       {/* Form panel */}
       {showForm && (
         <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-6">
           <h2 className="text-base font-semibold text-zinc-900 mb-4">
             {editId ? '編輯展覽' : '新增展覽'}
           </h2>
+
+          {/* Import from URL */}
+          {!editId && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
+              <p className="text-sm font-medium text-blue-900 mb-1">從網址匯入（選用）</p>
+              <p className="text-xs text-blue-600 mb-3">貼上展覽頁網址，自動填入展覽資料與所有作品。</p>
+              <div className="flex gap-2">
+                <input
+                  className="form-input flex-1 text-sm"
+                  placeholder="https://www.uniart.com.tw/topics/..."
+                  value={importUrl}
+                  onChange={e => { setImportUrl(e.target.value); setImportedArtworks(null); setImportError(''); setBatchSuccess(''); }}
+                />
+                <button onClick={handleImportUrl} disabled={importing || !importUrl.trim()} className="btn-primary text-sm whitespace-nowrap">
+                  {importing ? '解析中…' : '解析'}
+                </button>
+              </div>
+              {importError && <p className="text-red-500 text-xs mt-2">{importError}</p>}
+
+              {/* Artwork preview */}
+              {importedArtworks && (
+                <div className="mt-3 border-t border-blue-100 pt-3">
+                  <p className="text-xs font-medium text-blue-900 mb-2">
+                    找到 {importedArtworks.length} 件作品
+                  </p>
+                  <ul className="space-y-1 mb-3">
+                    {importedArtworks.slice(0, 5).map((aw, i) => (
+                      <li key={i} className="text-xs text-blue-800 flex gap-2">
+                        <span className="text-blue-400">{i + 1}.</span>
+                        <span>{aw.title}</span>
+                        {aw.artist && <span className="text-blue-500">／{aw.artist}</span>}
+                      </li>
+                    ))}
+                    {importedArtworks.length > 5 && (
+                      <li className="text-xs text-blue-400">…還有 {importedArtworks.length - 5} 件</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="form-label">展覽代碼 *</label>
@@ -112,9 +231,15 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
           </div>
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
           <div className="flex gap-2 mt-4">
-            <button onClick={handleSave} disabled={saving} className="btn-primary">
-              {saving ? '儲存中…' : '儲存'}
-            </button>
+            {importedArtworks && !editId ? (
+              <button onClick={handleBatchImport} disabled={batchSaving} className="btn-primary">
+                {batchSaving ? '建立中…' : `一鍵建立展覽 ＋ ${importedArtworks.length} 件作品`}
+              </button>
+            ) : (
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
+                {saving ? '儲存中…' : '儲存'}
+              </button>
+            )}
             <button onClick={() => setShowForm(false)} className="btn-ghost">取消</button>
           </div>
         </div>

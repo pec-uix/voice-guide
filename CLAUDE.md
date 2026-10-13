@@ -19,7 +19,7 @@
 |---|---|---|
 | 前端＋後端 | Next.js（App Router）+ TypeScript，部署在 **Cloudflare Pages** | Pages Functions 免費層明文允許商業使用，自訂網域免費，不用像 Vercel Hobby 打擦邊球 |
 | 資料庫 | **Neon**（Serverless Postgres） | 免費層閒置後自動休眠，下次查詢幾百毫秒內自動喚醒，不需要手動去後台恢復（跟 Supabase 免費層行為不同） |
-| 檔案儲存 | **Cloudflare R2** | 免費 10GB，沒有流量費，串流音檔比 Google Drive 穩定，不會跳病毒掃描確認頁 |
+| 檔案儲存 | **Cloudinary** | 免費層提供 25GB 儲存空間與 25GB 每月流量，串流音檔穩定，不會跳病毒掃描確認頁 |
 | QR Code | `qrcode` npm 套件，前端或後台產生 | 網址結構固定即可，不需要額外服務 |
 | 翻譯 | **Gemini API**（Google AI Studio） | 完全免費，不需要信用卡；免費額度依模型而定（例如 Flash-Lite 每天 1,000 次請求），這批內容量遠低於這個上限。用語言模型理解上下文翻譯，對文學性文字（如作品標題）通常比純詞庫比對的服務翻得自然。**注意**：免費層的資料預設可能被用於改善 Google 模型，可在設定裡手動關閉；後台仍有「待校對」機制把關，草稿品質不是問題 |
 | 後台登入 | **NextAuth.js（Auth.js）+ Google Provider** | 免費，不用自己存密碼雜湊；展覽方用既有 Google 帳號登入，開發者只需維護一份 email 白名單 |
@@ -54,8 +54,8 @@ Cloudflare Pages（Next.js 專案）
         ▼
    ┌────┴────┐
    ▼         ▼
-Neon        Cloudflare R2
-(Postgres)  (音檔、圖片)
+Neon        Cloudinary
+(Postgres)  (音檔)
 作品資料
 事件記錄
 ```
@@ -82,6 +82,10 @@ Neon        Cloudflare R2
 | `/api/exhibitions`、`/api/exhibitions/[id]` | 前台／後台呼叫 | 展覽的讀取、新增、編輯 |
 | `/api/artworks`、`/api/artworks/[id]` | 前台／後台呼叫 | 作品的讀取、新增、編輯 |
 | `/api/events` | 前台呼叫 | 寫入掃描／播放／點擊事件 |
+| `/api/artworks/[id]/tts` | 後台呼叫 | 從逐字稿文字生成音檔（額外功能） |
+| `/api/artworks/[id]/transcribe` | 後台呼叫 | 自動辨識已上傳音檔的逐字稿分段（額外功能） |
+| `/api/artworks/import-url` | 後台呼叫 | 從網址爬取並解析作品資料（額外功能） |
+| `/api/exhibitions/import-url` | 後台呼叫 | 從網址爬取並解析展覽資料（額外功能） |
 
 ## 5. 專案結構（建議）
 
@@ -100,9 +104,13 @@ app/
     artworks/route.ts          # 取得/新增作品
     artworks/[id]/route.ts     # 編輯/刪除單一作品
     events/route.ts            # 記錄掃描/播放事件
+    artworks/[id]/tts/route.ts          # TTS 生成音檔（額外功能，見第 12 節）
+    artworks/[id]/transcribe/route.ts   # 自動辨識逐字稿（額外功能，見第 12 節）
+    artworks/import-url/route.ts        # 網址匯入作品資料（額外功能，見第 12 節）
+    exhibitions/import-url/route.ts     # 網址匯入展覽資料（額外功能，見第 12 節）
 lib/
   db.ts                        # Neon client
-  storage.ts                   # R2 client
+  storage.ts                   # Cloudinary client
   types.ts                     # 共用型別
 components/
   AudioPlayer.tsx
@@ -210,15 +218,63 @@ schema.sql                     # 資料庫 schema，改動時同步更新這份
 ## 10. 開發慣例
 
 - API 回傳統一用 `{ data, error }` 格式
-- 環境變數放 `.env.local`，不要 commit（確認 `.gitignore` 有列進去）。需要的環境變數：`DATABASE_URL`（Neon 連線字串）、`R2_ACCESS_KEY_ID`／`R2_SECRET_ACCESS_KEY`／`R2_BUCKET`（Cloudflare R2）、`GEMINI_API_KEY`（Google AI Studio 申請，免費、不用綁卡）、`GOOGLE_CLIENT_ID`／`GOOGLE_CLIENT_SECRET`（Google OAuth）、`NEXTAUTH_SECRET`（NextAuth 加密 session 用，隨機字串即可）。正式環境的金鑰設定在 Cloudflare Pages 後台的環境變數，不進版本控制
+- 環境變數放 `.env.local`，不要 commit（確認 `.gitignore` 有列進去）。需要的環境變數：`DATABASE_URL`（Neon 連線字串）、`CLOUDINARY_CLOUD_NAME`／`CLOUDINARY_API_KEY`／`CLOUDINARY_API_SECRET`（Cloudinary 音檔儲存）、`GEMINI_API_KEY`（Google AI Studio 申請，免費、不用綁卡）、`GOOGLE_CLIENT_ID`／`GOOGLE_CLIENT_SECRET`（Google OAuth）、`NEXTAUTH_SECRET`（NextAuth 加密 session 用，隨機字串即可）。額外功能另需：`GROQ_API_KEY`（Groq Whisper 自動辨識逐字稿）。正式環境的金鑰設定在 Cloudflare Pages 後台的環境變數，不進版本控制
 - 每個階段做完先跑過一輪手動測試，再 commit
 - `language_code` 用固定清單（`zh-TW` / `en` / `ja`），後台用下拉選單而不是讓使用者自己打字，避免打成 `zh-tw`、`zh_TW` 這種變體造成資料對不起來
 - `transcript_segments` 存檔前驗證：`end_time` 要大於 `start_time`，同一作品的分段之間不能時間重疊
 - 外部服務失敗時要有明確的降級行為，不能讓畫面空白或卡住：
   - Gemini 呼叫失敗或超過額度 → 該筆內容顯示中文原文，標記「翻譯生成中，稍後查看」，不要擋住整個儲存動作
-  - 音檔從 R2 載入失敗 → 播放器顯示明確錯誤訊息（例如「音檔載入失敗，請重新整理」），不要靜音卡住讓使用者以為在載入
+  - 音檔從 Cloudinary 載入失敗 → 播放器顯示明確錯誤訊息（例如「音檔載入失敗，請重新整理」），不要靜音卡住讓使用者以為在載入
 
-## 11. 無障礙設計
+## 11. 額外功能（非原始規劃，後續新增）
+
+以下功能不在原始 CLAUDE.md 規劃內，是開發過程中額外加入的，依賴額外的第三方服務與環境變數。
+
+### TTS 音檔生成
+
+**端點**：`POST /api/artworks/[id]/tts`
+
+從逐字稿文字呼叫 Microsoft Edge TTS（套件 `msedge-tts`）生成音檔，自動上傳至 Cloudinary 並寫回 `artwork_translations.audio_url`。
+
+- 支援語言：`zh-TW`（預設）、`en`
+- 可選語音（中文）：`zh-TW-HsiaoChenNeural`、`zh-TW-HsiaoYuNeural`、`zh-TW-YunJheNeural`
+- 可選語音（英文）：`en-US-JennyNeural`、`en-US-GuyNeural`、`en-GB-SoniaNeural`
+- 不需要額外的 API 金鑰（直接使用 Edge TTS 的公開端點）
+- 用途：沒有現成音檔時，可快速從逐字稿文字生成替代音檔
+
+### 自動辨識逐字稿
+
+**端點**：`POST /api/artworks/[id]/transcribe`
+
+取得作品已上傳的中文音檔，送到 Groq 的 Whisper API（`whisper-large-v3` 模型）進行語音辨識，回傳帶時間戳記的分段逐字稿草稿。
+
+- 需要環境變數：`GROQ_API_KEY`（在 [console.groq.com](https://console.groq.com) 免費申請）
+- 回傳格式：`[{ segment_index, start_time, end_time, text }]`，可直接貼進 segments API
+- 辨識結果為草稿，需人工校對後才存入資料庫
+- 用途：省去手動打逐字稿的時間，取代本機跑 Whisper 的做法
+
+### 網址匯入作品資料
+
+**端點**：`POST /api/artworks/import-url`（需登入）
+
+傳入作品介紹網頁的網址，伺服器抓取 HTML 後呼叫 Gemini API（`parseArtworkFromHtml`）解析出作品標題、介紹、藝術家等欄位，回傳預填資料供後台表單使用——使用者確認後才真正儲存，不會自動寫入資料庫。
+
+- 需要環境變數：`GEMINI_API_KEY`（已有）
+- 部分網站需要 JavaScript 渲染才能顯示內容，這類網址無法解析（會回傳錯誤提示）
+- 用途：批次建立作品時省去手動複製貼上的時間
+
+### 網址匯入展覽資料
+
+**端點**：`POST /api/exhibitions/import-url`（需登入）
+
+與上方相同邏輯，改為解析展覽介紹頁面，呼叫 `parseExhibitionFromHtml`。
+
+- 需要環境變數：`GEMINI_API_KEY`（已有）
+- 用途：同上，針對展覽層級的資料
+
+---
+
+## 12. 無障礙設計
 
 這是語音導覽工具，服務對象天生包含視力、聽力不便的參觀者，前台開發時要一併考慮，不是上線後才補：
 

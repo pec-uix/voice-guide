@@ -146,7 +146,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
             </div>
           </div>
           <p className="text-xs text-zinc-400 mt-2">
-            儲存後，系統會自動把中文內容翻譯成英文和日文草稿（需要校對）
+            儲存後，系統會自動把中文內容翻譯成英文草稿（需要校對）
           </p>
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
           <div className="flex gap-2 mt-4">

@@ -22,7 +22,6 @@ interface Props {
 const LANGS = [
   { code: 'zh-TW' as LanguageCode, label: '中文' },
   { code: 'en' as LanguageCode, label: 'EN' },
-  { code: 'ja' as LanguageCode, label: '日本語' },
 ];
 
 function formatTime(sec: number) {
@@ -45,9 +44,11 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
     translations.find((tr) => tr.language_code === lang) ??
     translations.find((tr) => tr.language_code === 'zh-TW');
 
-  const audioUrl = translations.find((tr) => tr.language_code === 'zh-TW')?.audio_url ?? null;
+  const audioUrl =
+    translations.find((tr) => tr.language_code === lang)?.audio_url ??
+    translations.find((tr) => tr.language_code === 'zh-TW')?.audio_url ??
+    null;
 
-  // Record scan event once on mount
   useEffect(() => {
     if (scanRecorded.current) return;
     scanRecorded.current = true;
@@ -69,12 +70,10 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
     [artwork.id, lang],
   );
 
-  // Find current active segment
   const activeIdx = segments.findIndex(
     (s) => currentTime >= s.start_time && currentTime < s.end_time,
   );
 
-  // Scroll active segment into view
   useEffect(() => {
     if (activeIdx >= 0) {
       segmentRefs.current[activeIdx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -88,10 +87,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
       audio.pause();
       recordEvent('pause');
     } else {
-      audio
-        .play()
-        .then(() => recordEvent('play'))
-        .catch(() => {});
+      audio.play().then(() => recordEvent('play')).catch(() => {});
     }
   };
 
@@ -107,18 +103,34 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-xl mx-auto px-5 py-8 pb-20">
 
-        {/* Language switcher */}
-        <div className="flex gap-2 mb-8">
+      {/* Cover image — full bleed, no padding */}
+      {artwork.cover_image_url ? (
+        <div className="w-full overflow-hidden" style={{ aspectRatio: '4/3' }}>
+          <img
+            src={artwork.cover_image_url}
+            alt={translation?.title ?? artwork.code}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : (
+        <div className="w-full bg-zinc-100 flex items-center justify-center" style={{ aspectRatio: '4/3' }}>
+          <span className="text-zinc-300 text-5xl">♪</span>
+        </div>
+      )}
+
+      <div className="max-w-xl mx-auto px-6 pt-8 pb-24">
+
+        {/* Language switcher — text style */}
+        <div className="flex justify-end gap-4 mb-8">
           {LANGS.map((l) => (
             <button
               key={l.code}
               onClick={() => setLang(l.code)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              className={`text-xs tracking-wider transition-colors pb-0.5 ${
                 lang === l.code
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'text-zinc-500 border-zinc-300 hover:border-zinc-700 hover:text-zinc-700'
+                  ? 'text-zinc-900 border-b border-zinc-900'
+                  : 'text-zinc-400 hover:text-zinc-600'
               }`}
             >
               {l.label}
@@ -126,41 +138,31 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           ))}
         </div>
 
-        {/* Cover image */}
-        {artwork.cover_image_url && (
-          <img
-            src={artwork.cover_image_url}
-            alt={translation?.title ?? artwork.code}
-            className="w-full aspect-[4/3] object-cover rounded-xl mb-6"
-          />
-        )}
-
-        {/* Title */}
-        <h1 className="text-2xl font-bold text-zinc-900 leading-tight mb-1">
-          {translation?.title ?? artwork.code}
-        </h1>
-
         {/* Artist / Year */}
         {(artwork.artist || artwork.year) && (
-          <p className="text-sm text-zinc-500 mb-6">
-            {[artwork.artist, artwork.year].filter(Boolean).join('・')}
+          <p className="text-xs text-zinc-400 tracking-widest uppercase mb-3">
+            {[artwork.artist, artwork.year].filter(Boolean).join('  ·  ')}
           </p>
         )}
 
+        {/* Title */}
+        <h1 className="text-3xl font-bold text-zinc-900 leading-tight mb-8">
+          {translation?.title ?? artwork.code}
+        </h1>
+
         {/* Description */}
         {translation?.description && (
-          <p className="text-zinc-700 leading-relaxed mb-8 whitespace-pre-wrap text-base">
+          <p className="text-zinc-600 leading-loose text-base whitespace-pre-wrap mb-10">
             {translation.description}
           </p>
         )}
 
+        <div className="border-t border-zinc-100 mb-8" />
+
         {/* Audio player */}
-        <div className="bg-zinc-50 border border-zinc-100 rounded-2xl p-5 mb-8">
-          <p className="text-xs font-medium text-zinc-400 mb-3 uppercase tracking-wide">
+        <div className="mb-10">
+          <p className="text-xs text-zinc-400 tracking-widest uppercase mb-5">
             {t('audioGuide', lang)}
-            {lang !== 'zh-TW' && (
-              <span className="normal-case ml-1">{t('chineseAudio', lang)}</span>
-            )}
           </p>
 
           {audioUrl ? (
@@ -177,28 +179,28 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                 preload="metadata"
               />
               {audioError ? (
-                <p className="text-red-500 text-sm py-2">{audioError}</p>
+                <p className="text-red-400 text-sm">{audioError}</p>
               ) : (
-                <div className="flex items-center gap-4">
-                  {/* Play/Pause button */}
+                <div className="flex items-center gap-5">
+                  {/* Play/Pause — outline circle */}
                   <button
                     onClick={handlePlayPause}
                     aria-label={isPlaying ? t('pause', lang) : t('play', lang)}
-                    className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-zinc-900 text-white rounded-full shadow-sm active:scale-95 transition-transform"
+                    className="w-14 h-14 flex-shrink-0 flex items-center justify-center border border-zinc-900 rounded-full text-zinc-900 hover:bg-zinc-900 hover:text-white active:scale-95 transition-all"
                   >
                     {isPlaying ? (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                         <rect x="6" y="4" width="4" height="16" rx="1" />
                         <rect x="14" y="4" width="4" height="16" rx="1" />
                       </svg>
                     ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ marginLeft: 2 }}>
                         <path d="M6 4.75a.75.75 0 0 1 1.18-.61l11 7.25a.75.75 0 0 1 0 1.22l-11 7.25A.75.75 0 0 1 6 19.25V4.75z" />
                       </svg>
                     )}
                   </button>
 
-                  {/* Progress */}
+                  {/* Progress bar */}
                   <div className="flex-1">
                     <input
                       type="range"
@@ -213,7 +215,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                       }}
                       aria-label={t('audioGuide', lang)}
                     />
-                    <div className="flex justify-between text-xs text-zinc-400 mt-1">
+                    <div className="flex justify-between text-xs text-zinc-400 mt-1.5">
                       <span>{formatTime(currentTime)}</span>
                       <span>{formatTime(duration)}</span>
                     </div>
@@ -222,17 +224,17 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
               )}
             </>
           ) : (
-            <p className="text-zinc-400 text-sm py-1">{t('noAudio', lang)}</p>
+            <p className="text-zinc-400 text-sm">{t('noAudio', lang)}</p>
           )}
         </div>
 
         {/* Transcript */}
         {segments.length > 0 && (
-          <section className="mb-10" aria-label={t('transcript', lang)}>
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-4">
+          <section className="mb-12" aria-label={t('transcript', lang)}>
+            <h2 className="text-xs text-zinc-400 tracking-widest uppercase mb-6">
               {t('transcript', lang)}
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {segments.map((seg, idx) => {
                 const text =
                   seg.texts.find((tx) => tx.language_code === lang)?.text ??
@@ -249,13 +251,14 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                         setCurrentTime(seg.start_time);
                       }
                     }}
-                    className={`text-base leading-relaxed cursor-pointer transition-all ${
-                      isActive
-                        ? 'text-zinc-900 font-semibold underline decoration-2 underline-offset-4 decoration-zinc-900'
-                        : 'text-zinc-400 hover:text-zinc-600'
+                    className={`text-base leading-loose cursor-pointer transition-all flex items-start gap-3 ${
+                      isActive ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
                     }`}
                   >
-                    {text}
+                    <span className={`mt-2.5 w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all ${
+                      isActive ? 'bg-zinc-900' : 'bg-zinc-200'
+                    }`} />
+                    <span className={isActive ? 'font-medium' : ''}>{text}</span>
                   </p>
                 );
               })}
@@ -263,16 +266,16 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           </section>
         )}
 
-        {/* Purchase link — placed after transcript content */}
+        {/* Purchase link — outline button */}
         {translation?.purchase_url && (
           <a
             href={translation.purchase_url}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => recordEvent('click_purchase')}
-            className="block w-full text-center bg-zinc-900 text-white py-4 rounded-2xl font-medium text-base active:opacity-80 transition-opacity"
+            className="block w-full text-center border border-zinc-900 text-zinc-900 py-4 text-sm font-medium tracking-wider hover:bg-zinc-900 hover:text-white transition-colors"
           >
-            {t('buy', lang)}
+            {t('buy', lang)} ↗
           </a>
         )}
       </div>

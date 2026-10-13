@@ -55,7 +55,7 @@ create table artwork_translations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (artwork_id, language_code),
-  constraint artwork_translations_language_code check (language_code in ('zh-TW', 'en', 'ja'))
+  constraint artwork_translations_language_code check (language_code in ('zh-TW', 'en'))
 );
 
 -- 逐字稿分段：時間戳記以中文原音為準，播放同步反白用
@@ -77,7 +77,7 @@ create table transcript_segment_texts (
   text text not null,
   is_reviewed boolean not null default false, -- false = 翻譯 API 自動產生的草稿，尚未人工校對
   unique (segment_id, language_code),
-  constraint transcript_segment_texts_language_code check (language_code in ('zh-TW', 'en', 'ja'))
+  constraint transcript_segment_texts_language_code check (language_code in ('zh-TW', 'en'))
 );
 
 -- 事件記錄：掃描、播放、暫停、完成播放...都記在這裡

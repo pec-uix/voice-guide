@@ -28,16 +28,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
   try {
     const body = await req.json();
-    const { title, description, purchase_url, is_reviewed } = body;
+    const { title, description, purchase_url, audio_url, is_reviewed } = body;
 
     const [row] = await sql`
-      UPDATE artwork_translations SET
-        title        = COALESCE(${title ?? null}, title),
-        description  = ${description !== undefined ? description : sql`description`},
-        purchase_url = ${purchase_url !== undefined ? purchase_url : sql`purchase_url`},
-        is_reviewed  = COALESCE(${is_reviewed ?? null}, is_reviewed),
+      INSERT INTO artwork_translations (artwork_id, language_code, title, description, purchase_url, audio_url, is_reviewed)
+      VALUES (${id}, ${lang}, ${title ?? ''}, ${description ?? null}, ${purchase_url ?? null}, ${audio_url ?? null}, ${is_reviewed ?? false})
+      ON CONFLICT (artwork_id, language_code) DO UPDATE SET
+        title        = COALESCE(${title ?? null}, artwork_translations.title),
+        description  = ${description !== undefined ? description : sql`artwork_translations.description`},
+        purchase_url = ${purchase_url !== undefined ? purchase_url : sql`artwork_translations.purchase_url`},
+        audio_url    = ${audio_url !== undefined ? audio_url : sql`artwork_translations.audio_url`},
+        is_reviewed  = COALESCE(${is_reviewed ?? null}, artwork_translations.is_reviewed),
         updated_at   = now()
-      WHERE artwork_id = ${id} AND language_code = ${lang}
       RETURNING *
     `;
     if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });

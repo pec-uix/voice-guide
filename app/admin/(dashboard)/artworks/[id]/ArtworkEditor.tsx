@@ -18,7 +18,7 @@ interface Props {
   exhibitions: Exhibition[];
 }
 
-const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English', ja: '日本語' };
+const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English' };
 
 const BASE_URL = typeof window !== 'undefined'
   ? window.location.origin
@@ -43,9 +43,70 @@ function parseSegmentText(raw: string): { segment_index: number; start_time: num
   return result;
 }
 
+function LangTabs({ value, onChange, pendingLangs = [] }: {
+  value: 'zh-TW' | 'en';
+  onChange: (l: 'zh-TW' | 'en') => void;
+  pendingLangs?: string[];
+}) {
+  return (
+    <div className="flex gap-1 mb-4 bg-zinc-100 rounded-lg p-1 w-fit">
+      {(['zh-TW', 'en'] as const).map(l => (
+        <button key={l} onClick={() => onChange(l)}
+          className={`relative px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            value === l ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+          }`}
+        >
+          {LANG_LABEL[l]}
+          {pendingLangs.includes(l) && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full border-2 border-zinc-100" />
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ArtworkEditor({ artwork, translations, segments, exhibitions }: Props) {
   const router = useRouter();
   const [showQR, setShowQR] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+
+  // Single dirty flag — set true on any content change, reset after save
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [segFormatError, setSegFormatError] = useState('');
+
+  const markDirty = () => setIsDirty(true);
+
+  // Import from URL
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importDone, setImportDone] = useState(false);
+
+  const handleImportUrl = async () => {
+    if (!importUrl.trim()) return;
+    setImporting(true); setImportError(''); setImportDone(false);
+    try {
+      const res = await fetch('/api/artworks/import-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setImportError(json.error ?? '匯入失敗'); return; }
+      const d = json.data;
+      if (d.artist) setMeta(m => ({ ...m, artist: d.artist }));
+      if (d.year) setMeta(m => ({ ...m, year: String(d.year) }));
+      if (d.cover_image_url) setMeta(m => ({ ...m, cover_image_url: d.cover_image_url }));
+      if (d.title) setTForms(f => ({ ...f, 'zh-TW': { ...f['zh-TW'], title: d.title } }));
+      if (d.description) setTForms(f => ({ ...f, 'zh-TW': { ...f['zh-TW'], description: d.description } }));
+      setImportDone(true);
+      markDirty();
+    } catch { setImportError('網路錯誤'); }
+    finally { setImporting(false); }
+  };
 
   // Artwork metadata
   const [meta, setMeta] = useState({
@@ -55,30 +116,156 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     year: artwork.year ?? '',
     cover_image_url: artwork.cover_image_url ?? '',
   });
-  const [metaSaving, setMetaSaving] = useState(false);
-  const [metaError, setMetaError] = useState('');
 
-  // Translation editor state (per language)
-  const [tForms, setTForms] = useState<Record<string, { title: string; description: string; purchase_url: string }>>(
-    Object.fromEntries(
-      translations.map(t => [t.language_code, { title: t.title, description: t.description ?? '', purchase_url: t.purchase_url ?? '' }])
-    )
-  );
+  // Translations (always initialise both languages to avoid partial-state issues)
+  const [translationLang, setTranslationLang] = useState<'zh-TW' | 'en'>('zh-TW');
+  const [tForms, setTForms] = useState<Record<string, { title: string; description: string; purchase_url: string }>>({
+    'zh-TW': { title: '', description: '', purchase_url: '' },
+    'en':    { title: '', description: '', purchase_url: '' },
+    ...Object.fromEntries(
+      translations.map(t => [t.language_code, {
+        title: t.title,
+        description: t.description ?? '',
+        purchase_url: t.purchase_url ?? '',
+      }])
+    ),
+  });
   const [tSaving, setTSaving] = useState<Record<string, boolean>>({});
   const [tErrors, setTErrors] = useState<Record<string, string>>({});
   const [tReviewed, setTReviewed] = useState<Record<string, boolean>>(
     Object.fromEntries(translations.map(t => [t.language_code, t.is_reviewed]))
   );
 
+  // Audio (keeps its own immediate-action pattern)
+  const [audioLang, setAudioLang] = useState<'zh-TW' | 'en'>('zh-TW');
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioUploading, setAudioUploading] = useState(false);
+  const [audioError, setAudioError] = useState('');
+  const [audioUrls, setAudioUrls] = useState<Record<string, string | null>>({
+    'zh-TW': translations.find(t => t.language_code === 'zh-TW')?.audio_url ?? null,
+    'en':    translations.find(t => t.language_code === 'en')?.audio_url ?? null,
+  });
+
+  const handleAudioDelete = async () => {
+    if (!confirm('確定要刪除音檔嗎？')) return;
+    setAudioError('');
+    try {
+      const res = await fetch(`/api/artworks/${artwork.id}/translations/${audioLang}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio_url: null }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAudioError(json.error ?? '刪除失敗'); return; }
+      setAudioUrls(u => ({ ...u, [audioLang]: null }));
+    } catch { setAudioError('網路錯誤'); }
+  };
+
+  const handleAudioUpload = async () => {
+    if (!audioFile) return;
+    setAudioUploading(true); setAudioError('');
+    try {
+      const fd = new FormData();
+      fd.append('audio', audioFile);
+      fd.append('lang', audioLang);
+      const res = await fetch(`/api/artworks/${artwork.id}/audio`, { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) { setAudioError(json.error ?? '上傳失敗'); return; }
+      setAudioUrls(u => ({ ...u, [audioLang]: json.data.audio_url }));
+      setAudioFile(null);
+    } catch { setAudioError('網路錯誤'); }
+    finally { setAudioUploading(false); }
+  };
+
   // Segments
   const [segText, setSegText] = useState(segmentsToText(segments));
-  const [segSaving, setSegSaving] = useState(false);
-  const [segError, setSegError] = useState('');
+  const [transcribing, setTranscribing] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [ttsVoiceZh, setTtsVoiceZh] = useState('zh-TW-HsiaoChenNeural');
+  const [ttsVoiceEn, setTtsVoiceEn] = useState('en-US-JennyNeural');
 
-  const handleMetaSave = async () => {
-    setMetaSaving(true); setMetaError('');
+  const extractPlainText = (raw: string) =>
+    raw.trim().split('\n').filter(l => l.trim()).map(line => {
+      const parts = line.split(',');
+      if (parts.length >= 3 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
+        return parts.slice(2).join(',').trim();
+      }
+      return line.trim();
+    }).join('\n');
+
+  const extractEnglishTtsText = () =>
+    segments.map(s => s.texts.find(t => t.language_code === 'en')?.text ?? '').filter(Boolean).join('\n');
+
+  const handleGenerateAudio = async () => {
+    const isEn = audioLang === 'en';
+    const text = isEn ? extractEnglishTtsText() : extractPlainText(segText);
+    const voice = isEn ? ttsVoiceEn : ttsVoiceZh;
+    if (!text) { setAudioError(isEn ? '請先儲存英文逐字稿再產生音檔' : '請先填入逐字稿'); return; }
+    setGeneratingAudio(true); setAudioError('');
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}`, {
+      const res = await fetch(`/api/artworks/${artwork.id}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice, lang: audioLang }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setAudioError(json.error ?? '音檔產生失敗'); return; }
+      setAudioUrls(u => ({ ...u, [audioLang]: json.data.audio_url }));
+    } catch { setAudioError('網路錯誤'); }
+    finally { setGeneratingAudio(false); }
+  };
+
+  const handleTranscribe = async () => {
+    setTranscribing(true);
+    try {
+      const res = await fetch(`/api/artworks/${artwork.id}/transcribe`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) { setAudioError(json.error ?? '辨識失敗'); return; }
+      const lines = json.data.map((s: { start_time: number; end_time: number; text: string }) =>
+        `${s.start_time},${s.end_time},${s.text}`
+      ).join('\n');
+      setSegText(lines);
+      markDirty();
+    } catch { setAudioError('網路錯誤'); }
+    finally { setTranscribing(false); }
+  };
+
+  // Reviewed status — immediate save, separate from main dirty flow
+  const handleReviewedToggle = async (lang: string, markReviewed: boolean) => {
+    setTSaving(s => ({ ...s, [lang]: true }));
+    setTErrors(e => ({ ...e, [lang]: '' }));
+    try {
+      const res = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...tForms[lang], is_reviewed: markReviewed }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setTErrors(e => ({ ...e, [lang]: json.error ?? '更新失敗' })); return; }
+      setTReviewed(r => ({ ...r, [lang]: markReviewed }));
+    } catch { setTErrors(e => ({ ...e, [lang]: '網路錯誤' })); }
+    finally { setTSaving(s => ({ ...s, [lang]: false })); }
+  };
+
+  // ── Single save for all content ──────────────────────────────────────────
+  const handleSaveAll = async () => {
+    setSaveError(''); setSegFormatError('');
+
+    // Validate segments before calling any API
+    if (segText.trim()) {
+      const parsed = parseSegmentText(segText);
+      if (!parsed) {
+        setSegFormatError('格式錯誤，每行應為：開始秒數,結束秒數,文字');
+        return;
+      }
+    }
+
+    setSaving(true);
+    const errors: string[] = [];
+
+    try {
+      // Save metadata
+      const metaRes = await fetch(`/api/artworks/${artwork.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,238 +276,336 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           cover_image_url: meta.cover_image_url || null,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) { setMetaError(json.error ?? '儲存失敗'); return; }
-      router.refresh();
-    } catch { setMetaError('網路錯誤'); }
-    finally { setMetaSaving(false); }
+      if (!metaRes.ok) {
+        const j = await metaRes.json();
+        errors.push(j.error ?? '基本資料儲存失敗');
+      }
+
+      // Save translations (skip languages with no content and no existing DB row)
+      for (const lang of ['zh-TW', 'en'] as const) {
+        const form = tForms[lang];
+        const existsInDb = translations.some(t => t.language_code === lang);
+        const hasContent = form.title.trim() || form.description.trim() || form.purchase_url.trim();
+        if (!existsInDb && !hasContent) continue;
+
+        const tRes = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        if (!tRes.ok) {
+          const j = await tRes.json();
+          errors.push(j.error ?? `${LANG_LABEL[lang]}內容儲存失敗`);
+        }
+      }
+
+      // Save segments (triggers auto-translate)
+      if (segText.trim()) {
+        const parsed = parseSegmentText(segText)!;
+        const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ segments: parsed }),
+        });
+        if (!sRes.ok) {
+          const j = await sRes.json();
+          errors.push(j.error ?? '逐字稿儲存失敗');
+        }
+      }
+
+      if (errors.length > 0) {
+        setSaveError(errors.join('；'));
+      } else {
+        setIsDirty(false);
+        router.refresh();
+      }
+    } catch {
+      setSaveError('網路錯誤，請重試');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleTranslationSave = async (lang: string, markReviewed?: boolean) => {
-    setTSaving(s => ({ ...s, [lang]: true }));
-    setTErrors(e => ({ ...e, [lang]: '' }));
-    try {
-      const body: Record<string, unknown> = { ...tForms[lang] };
-      if (markReviewed !== undefined) body.is_reviewed = markReviewed;
-      const res = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) { setTErrors(e => ({ ...e, [lang]: json.error ?? '儲存失敗' })); return; }
-      if (markReviewed !== undefined) setTReviewed(r => ({ ...r, [lang]: markReviewed }));
-      router.refresh();
-    } catch { setTErrors(e => ({ ...e, [lang]: '網路錯誤' })); }
-    finally { setTSaving(s => ({ ...s, [lang]: false })); }
-  };
+  const pendingTranslationLangs = (['en'] as const).filter(l => {
+    const tr = translations.find(t => t.language_code === l);
+    return tr && !tr.is_reviewed;
+  });
 
-  const handleSegmentSave = async () => {
-    const parsed = parseSegmentText(segText);
-    if (!parsed) { setSegError('格式錯誤，每行應為：開始秒數,結束秒數,文字'); return; }
-    setSegSaving(true); setSegError('');
-    try {
-      const res = await fetch(`/api/artworks/${artwork.id}/segments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ segments: parsed }),
-      });
-      const json = await res.json();
-      if (!res.ok) { setSegError(json.error ?? '儲存失敗'); return; }
-      router.refresh();
-    } catch { setSegError('網路錯誤'); }
-    finally { setSegSaving(false); }
-  };
-
-  const allLangs = ['zh-TW', 'en', 'ja'];
+  const pendingSegLangs = (['en'] as const).filter(l =>
+    segments.some(s => s.texts.some(t => t.language_code === l && !t.is_reviewed))
+  );
 
   return (
-    <div className="space-y-6">
+    <div className={isDirty ? 'pb-20' : ''}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
+      <div className="flex items-center gap-2 text-sm text-zinc-500 mb-4">
         <Link href="/admin/artworks" className="hover:text-zinc-800">作品管理</Link>
         <span>/</span>
         <span className="text-zinc-900 font-medium">{tForms['zh-TW']?.title || artwork.code}</span>
       </div>
 
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-zinc-900">編輯作品</h1>
-        <button onClick={() => setShowQR(!showQR)} className="btn-ghost text-sm">
-          {showQR ? '關閉 QR Code' : '📱 QR Code'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setShowImport(v => !v); setImportDone(false); setImportError(''); }}
+            className="btn-ghost text-sm"
+          >
+            {showImport ? '收起匯入' : '從網址匯入'}
+          </button>
+          <button onClick={() => setShowQR(!showQR)} className="btn-ghost text-sm">
+            {showQR ? '關閉 QR Code' : '📱 QR Code'}
+          </button>
+        </div>
       </div>
 
       {/* QR Code */}
       {showQR && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6">
+        <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-4">
           <h2 className="text-sm font-semibold text-zinc-700 mb-4">作品 QR Code</h2>
           <QRCodeDisplay url={`${BASE_URL}/artwork/${artwork.code}`} label={`artwork-${artwork.code}`} />
         </div>
       )}
 
-      {/* Metadata */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-4">基本資料</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="form-label">作品代碼</label>
-            <input className="form-input" value={meta.code}
-              onChange={e => setMeta(m => ({ ...m, code: e.target.value }))} />
+      {/* Import from URL */}
+      {showImport && (
+        <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 mb-4">
+          <p className="text-sm text-zinc-600 mb-3">貼上作品頁網址，自動填入標題、藝術家、介紹、封面圖。</p>
+          <div className="flex gap-2">
+            <input
+              className="form-input flex-1"
+              placeholder="https://www.uniart.com.tw/products/..."
+              value={importUrl}
+              onChange={e => { setImportUrl(e.target.value); setImportDone(false); setImportError(''); }}
+            />
+            <button onClick={handleImportUrl} disabled={importing || !importUrl.trim()} className="btn-primary whitespace-nowrap">
+              {importing ? '解析中…' : '匯入'}
+            </button>
           </div>
-          <div>
-            <label className="form-label">所屬展覽</label>
-            <select className="form-input" value={meta.exhibition_id}
-              onChange={e => setMeta(m => ({ ...m, exhibition_id: e.target.value }))}>
-              <option value="">不指定</option>
-              {exhibitions.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="form-label">藝術家</label>
-            <input className="form-input" value={meta.artist}
-              onChange={e => setMeta(m => ({ ...m, artist: e.target.value }))} />
-          </div>
-          <div>
-            <label className="form-label">年代</label>
-            <input className="form-input" placeholder="例：2024" value={meta.year}
-              onChange={e => setMeta(m => ({ ...m, year: e.target.value }))} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="form-label">封面圖片網址</label>
-            <input className="form-input" placeholder="https://..." value={meta.cover_image_url}
-              onChange={e => setMeta(m => ({ ...m, cover_image_url: e.target.value }))} />
-          </div>
+          {importError && <p className="text-red-500 text-sm mt-2">{importError}</p>}
+          {importDone && <p className="text-green-600 text-sm mt-2">✓ 已填入資料，請確認後儲存。</p>}
         </div>
-        {metaError && <p className="text-red-500 text-sm mt-3">{metaError}</p>}
-        <div className="mt-4">
-          <button onClick={handleMetaSave} disabled={metaSaving} className="btn-primary">
-            {metaSaving ? '儲存中…' : '儲存基本資料'}
-          </button>
-        </div>
-      </section>
+      )}
 
-      {/* Audio */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-1">音檔</h2>
-        <p className="text-sm text-zinc-500 mb-4">僅提供中文原音，不做其他語言配音。</p>
-        {translations.find(t => t.language_code === 'zh-TW')?.audio_url ? (
-          <div className="flex items-center gap-3">
-            <audio controls src={translations.find(t => t.language_code === 'zh-TW')!.audio_url!} className="max-w-xs" />
-            <span className="text-xs text-zinc-400">已上傳</span>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-400 bg-zinc-50 rounded-xl p-4">
-            音檔上傳功能將在部署到 Cloudflare 後啟用（需要 R2 儲存設定）。
-          </p>
-        )}
-      </section>
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
 
-      {/* Translations */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-4">多語言內容</h2>
-        <div className="space-y-6">
-          {allLangs.map(lang => {
-            const t = translations.find(tr => tr.language_code === lang);
-            const form = tForms[lang] ?? { title: '', description: '', purchase_url: '' };
-            const isReviewed = tReviewed[lang] ?? false;
-            const isSaving = tSaving[lang] ?? false;
-            const err = tErrors[lang] ?? '';
+        {/* ── Left column: content ── */}
+        <div className="lg:col-span-3 space-y-5">
 
-            return (
-              <div key={lang} className="border border-zinc-100 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-zinc-700">{LANG_LABEL[lang]}</span>
-                  {lang !== 'zh-TW' && (
-                    isReviewed ? (
-                      <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">已校對</span>
-                    ) : (
-                      <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">待校對</span>
-                    )
-                  )}
-                </div>
-                {!t && lang !== 'zh-TW' && (
-                  <p className="text-xs text-zinc-400 mb-2">翻譯草稿尚未生成（儲存中文內容後會自動產生）</p>
-                )}
-                <div className="space-y-3">
-                  <div>
-                    <label className="form-label">標題</label>
-                    <input className="form-input" value={form.title}
-                      onChange={e => setTForms(f => ({ ...f, [lang]: { ...f[lang], title: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <label className="form-label">介紹文字</label>
-                    <textarea className="form-input" rows={3} value={form.description}
-                      onChange={e => setTForms(f => ({ ...f, [lang]: { ...f[lang], description: e.target.value } }))} />
-                  </div>
-                  <div>
-                    <label className="form-label">購買連結</label>
-                    <input className="form-input" placeholder="https://..." value={form.purchase_url}
-                      onChange={e => setTForms(f => ({ ...f, [lang]: { ...f[lang], purchase_url: e.target.value } }))} />
-                  </div>
-                </div>
-                {err && <p className="text-red-500 text-xs mt-2">{err}</p>}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => handleTranslationSave(lang)} disabled={isSaving} className="btn-primary text-xs py-1.5 px-3">
-                    {isSaving ? '儲存中…' : '儲存'}
-                  </button>
-                  {lang !== 'zh-TW' && !isReviewed && t && (
-                    <button onClick={() => handleTranslationSave(lang, true)} disabled={isSaving}
-                      className="text-xs text-green-700 border border-green-300 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition-colors">
-                      標記為已校對
-                    </button>
-                  )}
-                  {lang !== 'zh-TW' && isReviewed && (
-                    <button onClick={() => handleTranslationSave(lang, false)} disabled={isSaving}
-                      className="text-xs text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg px-3 py-1.5 transition-colors">
-                      取消校對
-                    </button>
-                  )}
-                </div>
+          {/* Metadata */}
+          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-zinc-900 mb-4">基本資料</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">作品代碼</label>
+                <input className="form-input" value={meta.code}
+                  onChange={e => { setMeta(m => ({ ...m, code: e.target.value })); markDirty(); }} />
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Segments */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-1">逐字稿（中文，含時間戳記）</h2>
-        <p className="text-sm text-zinc-500 mb-1">每行格式：<code className="bg-zinc-100 px-1 rounded">開始秒數,結束秒數,文字</code></p>
-        <p className="text-xs text-zinc-400 mb-4">儲存後會自動產生英文和日文翻譯草稿。</p>
-        <textarea
-          className="form-input font-mono text-sm"
-          rows={8}
-          value={segText}
-          onChange={e => setSegText(e.target.value)}
-          placeholder={'0,9,這件作品名為…\n9,20,藝術家以…\n20,30,流動的水面…'}
-        />
-        {segError && <p className="text-red-500 text-sm mt-2">{segError}</p>}
-        <div className="mt-3">
-          <button onClick={handleSegmentSave} disabled={segSaving} className="btn-primary">
-            {segSaving ? '儲存並翻譯中…' : '儲存逐字稿並自動翻譯'}
-          </button>
-        </div>
-        {segments.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-zinc-100">
-            <p className="text-xs text-zinc-500 mb-2">目前逐字稿翻譯狀態</p>
-            <div className="space-y-1">
-              {segments.map(s => {
-                const pending = s.texts.filter(t => t.language_code !== 'zh-TW' && !t.is_reviewed);
-                return (
-                  <div key={s.id} className="text-xs text-zinc-500 flex gap-2">
-                    <span className="w-14 text-zinc-400">段落 {s.segment_index + 1}</span>
-                    <span>{s.texts.find(t => t.language_code === 'zh-TW')?.text.slice(0, 30)}…</span>
-                    {pending.length > 0 && (
-                      <span className="text-amber-600">（{pending.map(t => t.language_code).join('、')} 待校對）</span>
-                    )}
-                  </div>
-                );
-              })}
+              <div>
+                <label className="form-label">所屬展覽</label>
+                <select className="form-input" value={meta.exhibition_id}
+                  onChange={e => { setMeta(m => ({ ...m, exhibition_id: e.target.value })); markDirty(); }}>
+                  <option value="">不指定</option>
+                  {exhibitions.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label">藝術家</label>
+                <input className="form-input" value={meta.artist}
+                  onChange={e => { setMeta(m => ({ ...m, artist: e.target.value })); markDirty(); }} />
+              </div>
+              <div>
+                <label className="form-label">年代</label>
+                <input className="form-input" placeholder="例：2024" value={meta.year}
+                  onChange={e => { setMeta(m => ({ ...m, year: e.target.value })); markDirty(); }} />
+              </div>
+              <div className="col-span-2">
+                <label className="form-label">封面圖片網址</label>
+                <input className="form-input" placeholder="https://..." value={meta.cover_image_url}
+                  onChange={e => { setMeta(m => ({ ...m, cover_image_url: e.target.value })); markDirty(); }} />
+              </div>
             </div>
+          </section>
+
+          {/* Translations */}
+          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-zinc-900 mb-4">多語言內容</h2>
+
+            <LangTabs value={translationLang} onChange={setTranslationLang} pendingLangs={pendingTranslationLangs} />
+
+            {(() => {
+              const lang = translationLang;
+              const tr = translations.find(t => t.language_code === lang);
+              const form = tForms[lang] ?? { title: '', description: '', purchase_url: '' };
+              const isReviewed = tReviewed[lang] ?? false;
+              const isSaving = tSaving[lang] ?? false;
+              const err = tErrors[lang] ?? '';
+              return (
+                <div>
+                  {lang !== 'zh-TW' && (
+                    <div className="mb-3">
+                      {isReviewed
+                        ? <span className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">已校對</span>
+                        : <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">待校對</span>
+                      }
+                    </div>
+                  )}
+                  {!tr && lang !== 'zh-TW' && (
+                    <p className="text-xs text-zinc-400 mb-3">翻譯草稿尚未生成（儲存中文內容後會自動產生）</p>
+                  )}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="form-label">標題</label>
+                      <input className="form-input" value={form.title}
+                        onChange={e => { setTForms(f => ({ ...f, [lang]: { ...f[lang], title: e.target.value } })); markDirty(); }} />
+                    </div>
+                    <div>
+                      <label className="form-label">介紹文字</label>
+                      <textarea className="form-input" rows={4} value={form.description}
+                        onChange={e => { setTForms(f => ({ ...f, [lang]: { ...f[lang], description: e.target.value } })); markDirty(); }} />
+                    </div>
+                    <div>
+                      <label className="form-label">購買連結</label>
+                      <input className="form-input" placeholder="https://..." value={form.purchase_url}
+                        onChange={e => { setTForms(f => ({ ...f, [lang]: { ...f[lang], purchase_url: e.target.value } })); markDirty(); }} />
+                    </div>
+                  </div>
+                  {err && <p className="text-red-500 text-xs mt-2">{err}</p>}
+                  {lang !== 'zh-TW' && tr && (
+                    <div className="flex gap-2 mt-3">
+                      {!isReviewed
+                        ? <button onClick={() => handleReviewedToggle(lang, true)} disabled={isSaving}
+                            className="text-xs text-green-700 border border-green-300 bg-green-50 hover:bg-green-100 rounded-lg px-3 py-1.5 transition-colors">
+                            {isSaving ? '更新中…' : '標記為已校對'}
+                          </button>
+                        : <button onClick={() => handleReviewedToggle(lang, false)} disabled={isSaving}
+                            className="text-xs text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg px-3 py-1.5 transition-colors">
+                            {isSaving ? '更新中…' : '取消校對'}
+                          </button>
+                      }
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </section>
+
+        </div>
+
+        {/* ── Right column: media ── */}
+        <div className="lg:col-span-2 space-y-5">
+
+          {/* Audio */}
+          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-zinc-900 mb-4">音檔</h2>
+
+            <LangTabs value={audioLang} onChange={l => { setAudioLang(l); setAudioFile(null); setAudioError(''); }} />
+
+            {audioUrls[audioLang] ? (
+              <div className="mb-4">
+                <audio controls src={audioUrls[audioLang]!} className="w-full" />
+                <button onClick={handleAudioDelete} className="mt-1.5 text-xs text-red-500 hover:text-red-700">
+                  刪除音檔
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400 mb-4">尚未上傳音檔</p>
+            )}
+
+            <div className="flex flex-wrap gap-2 items-center mb-4">
+              <label className="cursor-pointer">
+                <span className="btn-ghost text-sm">{audioUrls[audioLang] ? '重新上傳' : '選擇音檔'}</span>
+                <input type="file" accept="audio/*" className="hidden"
+                  onChange={e => { setAudioFile(e.target.files?.[0] ?? null); setAudioError(''); }} />
+              </label>
+              {audioFile && (
+                <>
+                  <span className="text-xs text-zinc-500 truncate max-w-[120px]">{audioFile.name}</span>
+                  <button onClick={handleAudioUpload} disabled={audioUploading} className="btn-primary text-sm">
+                    {audioUploading ? '上傳中…' : '上傳'}
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="border-t border-zinc-100 pt-4">
+              <p className="text-xs text-zinc-400 mb-2">或從逐字稿產生音檔</p>
+              <div className="flex flex-wrap gap-2 items-center">
+                {audioLang === 'zh-TW'
+                  ? <select value={ttsVoiceZh} onChange={e => setTtsVoiceZh(e.target.value)}
+                      className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
+                      <option value="zh-TW-HsiaoChenNeural">曉臻（女）</option>
+                      <option value="zh-TW-HsiaoYuNeural">曉雨（女）</option>
+                      <option value="zh-TW-YunJheNeural">雲哲（男）</option>
+                    </select>
+                  : <select value={ttsVoiceEn} onChange={e => setTtsVoiceEn(e.target.value)}
+                      className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
+                      <option value="en-US-JennyNeural">Jenny (Female, US)</option>
+                      <option value="en-US-GuyNeural">Guy (Male, US)</option>
+                      <option value="en-GB-SoniaNeural">Sonia (Female, UK)</option>
+                    </select>
+                }
+                <button onClick={handleGenerateAudio} disabled={generatingAudio} className="btn-ghost text-sm whitespace-nowrap">
+                  {generatingAudio ? '產生中…' : '🎙 產生音檔'}
+                </button>
+              </div>
+              {audioLang === 'zh-TW' && audioUrls['zh-TW'] && (
+                <button onClick={handleTranscribe} disabled={transcribing} className="mt-2 btn-ghost text-sm w-full">
+                  {transcribing ? '辨識中…' : '✨ 自動辨識時間戳記'}
+                </button>
+              )}
+              {audioLang === 'en' && segments.length === 0 && (
+                <p className="text-xs text-zinc-400 mt-2">請先在下方儲存逐字稿，系統會自動翻譯成英文。</p>
+              )}
+            </div>
+
+            {audioError && <p className="text-red-500 text-sm mt-3">{audioError}</p>}
+          </section>
+
+          {/* Segments */}
+          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold text-zinc-900">逐字稿</h2>
+              {pendingSegLangs.length > 0 && (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">英文待校對</span>
+              )}
+            </div>
+            <p className="text-xs text-zinc-400 mb-3">
+              每行：<code className="bg-zinc-100 px-1 rounded">開始秒,結束秒,中文文字</code>　儲存後自動翻譯英文。
+            </p>
+            <textarea
+              className="form-input font-mono text-sm"
+              rows={7}
+              value={segText}
+              onChange={e => { setSegText(e.target.value); markDirty(); setSegFormatError(''); }}
+              placeholder={'0,9,這件作品名為…\n9,20,藝術家以…\n20,30,流動的水面…'}
+            />
+            {segFormatError && <p className="text-red-500 text-sm mt-2">{segFormatError}</p>}
+          </section>
+
+        </div>
+      </div>
+
+      {/* ── Sticky save bar ── */}
+      <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${isDirty ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className="bg-white/95 backdrop-blur border-t border-zinc-200 shadow-lg">
+          <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+            <span className="text-sm text-zinc-500">
+              {saving ? '儲存中…' : saveError ? '' : '有未儲存的變更'}
+            </span>
+            {saveError && <p className="text-red-500 text-sm flex-1">{saveError}</p>}
+            <button
+              onClick={handleSaveAll}
+              disabled={saving || !isDirty}
+              className="btn-primary whitespace-nowrap"
+            >
+              {saving ? '儲存中…' : '儲存所有變更'}
+            </button>
           </div>
-        )}
-      </section>
+        </div>
+      </div>
     </div>
   );
 }

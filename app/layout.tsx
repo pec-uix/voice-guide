@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: '語音導覽',
-  description: '展覽語音導覽，支援中文、英文、日文',
+  description: '展覽語音導覽，支援中文、英文',
 };
 
 export const viewport = {
