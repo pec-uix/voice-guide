@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { sql } from '@/lib/db';
 import { uploadAudio } from '@/lib/storage';
 import { NextRequest, NextResponse } from 'next/server';
@@ -5,6 +6,9 @@ import { NextRequest, NextResponse } from 'next/server';
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   try {
     const [artwork] = await sql`SELECT id FROM artworks WHERE id = ${id}`;

@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { sql } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { LANGUAGE_CODES } from '@/lib/types';
@@ -22,6 +23,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id, lang } = await params;
   if (!LANGUAGE_CODES.includes(lang as never)) {
     return NextResponse.json({ error: 'Invalid language code' }, { status: 400 });

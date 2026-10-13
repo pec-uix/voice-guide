@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { sql } from '@/lib/db';
 import { uploadAudio } from '@/lib/storage';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
@@ -6,6 +7,9 @@ import { NextRequest, NextResponse } from 'next/server';
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
 
   const body = await req.json();

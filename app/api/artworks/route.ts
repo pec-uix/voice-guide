@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { sql } from '@/lib/db';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
@@ -29,6 +30,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await req.json();
     const { exhibition_id, code, cover_image_url, artist, year, title, description, purchase_url } =

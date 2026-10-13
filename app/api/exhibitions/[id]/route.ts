@@ -1,3 +1,4 @@
+import { auth } from '@/auth';
 import { sql } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -24,6 +25,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   try {
     const body = await req.json();
@@ -53,6 +57,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const { id } = await params;
   try {
     const [existing] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
