@@ -137,28 +137,26 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     Object.fromEntries(translations.map(t => [t.language_code, t.is_reviewed]))
   );
 
-  // Audio (keeps its own immediate-action pattern)
-  const [audioLang, setAudioLang] = useState<'zh-TW' | 'en'>('zh-TW');
+  // Audio — zh-TW only (frontend plays Chinese audio only per spec)
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUploading, setAudioUploading] = useState(false);
   const [audioError, setAudioError] = useState('');
-  const [audioUrls, setAudioUrls] = useState<Record<string, string | null>>({
-    'zh-TW': translations.find(t => t.language_code === 'zh-TW')?.audio_url ?? null,
-    'en':    translations.find(t => t.language_code === 'en')?.audio_url ?? null,
-  });
+  const [audioUrl, setAudioUrl] = useState<string | null>(
+    translations.find(t => t.language_code === 'zh-TW')?.audio_url ?? null
+  );
 
   const handleAudioDelete = async () => {
     if (!confirm('確定要刪除音檔嗎？')) return;
     setAudioError('');
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/translations/${audioLang}`, {
+      const res = await fetch(`/api/artworks/${artwork.id}/translations/zh-TW`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audio_url: null }),
       });
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '刪除失敗'); return; }
-      setAudioUrls(u => ({ ...u, [audioLang]: null }));
+      setAudioUrl(null);
     } catch { setAudioError('網路錯誤'); }
   };
 
@@ -168,11 +166,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     try {
       const fd = new FormData();
       fd.append('audio', audioFile);
-      fd.append('lang', audioLang);
+      fd.append('lang', 'zh-TW');
       const res = await fetch(`/api/artworks/${artwork.id}/audio`, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '上傳失敗'); return; }
-      setAudioUrls(u => ({ ...u, [audioLang]: json.data.audio_url }));
+      setAudioUrl(json.data.audio_url);
       setAudioFile(null);
     } catch { setAudioError('網路錯誤'); }
     finally { setAudioUploading(false); }
@@ -183,7 +181,6 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   const [transcribing, setTranscribing] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [ttsVoiceZh, setTtsVoiceZh] = useState('zh-TW-HsiaoChenNeural');
-  const [ttsVoiceEn, setTtsVoiceEn] = useState('en-US-JennyNeural');
 
   const extractPlainText = (raw: string) =>
     raw.trim().split('\n').filter(l => l.trim()).map(line => {
@@ -194,24 +191,19 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       return line.trim();
     }).join('\n');
 
-  const extractEnglishTtsText = () =>
-    segments.map(s => s.texts.find(t => t.language_code === 'en')?.text ?? '').filter(Boolean).join('\n');
-
   const handleGenerateAudio = async () => {
-    const isEn = audioLang === 'en';
-    const text = isEn ? extractEnglishTtsText() : extractPlainText(segText);
-    const voice = isEn ? ttsVoiceEn : ttsVoiceZh;
-    if (!text) { setAudioError(isEn ? '請先儲存英文逐字稿再產生音檔' : '請先填入逐字稿'); return; }
+    const text = extractPlainText(segText);
+    if (!text) { setAudioError('請先填入逐字稿'); return; }
     setGeneratingAudio(true); setAudioError('');
     try {
       const res = await fetch(`/api/artworks/${artwork.id}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice, lang: audioLang }),
+        body: JSON.stringify({ text, voice: ttsVoiceZh, lang: 'zh-TW' }),
       });
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '音檔產生失敗'); return; }
-      setAudioUrls(u => ({ ...u, [audioLang]: json.data.audio_url }));
+      setAudioUrl(json.data.audio_url);
     } catch { setAudioError('網路錯誤'); }
     finally { setGeneratingAudio(false); }
   };
@@ -506,15 +498,13 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         {/* ── Right column: media ── */}
         <div className="lg:col-span-2 space-y-5">
 
-          {/* Audio */}
+          {/* Audio — zh-TW only */}
           <section className="bg-white border border-zinc-200 rounded-2xl p-5">
-            <h2 className="text-base font-semibold text-zinc-900 mb-4">音檔</h2>
+            <h2 className="text-base font-semibold text-zinc-900 mb-4">音檔（中文）</h2>
 
-            <LangTabs value={audioLang} onChange={l => { setAudioLang(l); setAudioFile(null); setAudioError(''); }} />
-
-            {audioUrls[audioLang] ? (
+            {audioUrl ? (
               <div className="mb-4">
-                <audio controls src={audioUrls[audioLang]!} className="w-full" />
+                <audio controls src={audioUrl} className="w-full" />
                 <button onClick={handleAudioDelete} className="mt-1.5 text-xs text-red-500 hover:text-red-700">
                   刪除音檔
                 </button>
@@ -525,7 +515,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
 
             <div className="flex flex-wrap gap-2 items-center mb-4">
               <label className="cursor-pointer">
-                <span className="btn-ghost text-sm">{audioUrls[audioLang] ? '重新上傳' : '選擇音檔'}</span>
+                <span className="btn-ghost text-sm">{audioUrl ? '重新上傳' : '選擇音檔'}</span>
                 <input type="file" accept="audio/*" className="hidden"
                   onChange={e => { setAudioFile(e.target.files?.[0] ?? null); setAudioError(''); }} />
               </label>
@@ -542,31 +532,20 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             <div className="border-t border-zinc-100 pt-4">
               <p className="text-xs text-zinc-400 mb-2">或從逐字稿產生音檔</p>
               <div className="flex flex-wrap gap-2 items-center">
-                {audioLang === 'zh-TW'
-                  ? <select value={ttsVoiceZh} onChange={e => setTtsVoiceZh(e.target.value)}
-                      className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
-                      <option value="zh-TW-HsiaoChenNeural">曉臻（女）</option>
-                      <option value="zh-TW-HsiaoYuNeural">曉雨（女）</option>
-                      <option value="zh-TW-YunJheNeural">雲哲（男）</option>
-                    </select>
-                  : <select value={ttsVoiceEn} onChange={e => setTtsVoiceEn(e.target.value)}
-                      className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
-                      <option value="en-US-JennyNeural">Jenny (Female, US)</option>
-                      <option value="en-US-GuyNeural">Guy (Male, US)</option>
-                      <option value="en-GB-SoniaNeural">Sonia (Female, UK)</option>
-                    </select>
-                }
+                <select value={ttsVoiceZh} onChange={e => setTtsVoiceZh(e.target.value)}
+                  className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
+                  <option value="zh-TW-HsiaoChenNeural">曉臻（女）</option>
+                  <option value="zh-TW-HsiaoYuNeural">曉雨（女）</option>
+                  <option value="zh-TW-YunJheNeural">雲哲（男）</option>
+                </select>
                 <button onClick={handleGenerateAudio} disabled={generatingAudio} className="btn-ghost text-sm whitespace-nowrap">
                   {generatingAudio ? '產生中…' : '🎙 產生音檔'}
                 </button>
               </div>
-              {audioLang === 'zh-TW' && audioUrls['zh-TW'] && (
+              {audioUrl && (
                 <button onClick={handleTranscribe} disabled={transcribing} className="mt-2 btn-ghost text-sm w-full">
                   {transcribing ? '辨識中…' : '✨ 自動辨識時間戳記'}
                 </button>
-              )}
-              {audioLang === 'en' && segments.length === 0 && (
-                <p className="text-xs text-zinc-400 mt-2">請先在下方儲存逐字稿，系統會自動翻譯成英文。</p>
               )}
             </div>
 
