@@ -86,19 +86,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
       if (zhTitle) {
         const [titleT, descT] = await Promise.all([
           translateBoth(zhTitle),
-          zhDesc ? translateBoth(zhDesc) : Promise.resolve({ en: null }),
+          zhDesc ? translateBoth(zhDesc) : Promise.resolve({ en: null, failed: false }),
         ]);
 
-        if (titleT.en) {
-          await sql`
-            INSERT INTO artwork_translations
-              (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-            VALUES (${id}, 'en', ${titleT.en}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
-            ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-              title = EXCLUDED.title, description = EXCLUDED.description,
-              is_reviewed = false, updated_at = now()
-          `;
-        }
+        await sql`
+          INSERT INTO artwork_translations
+            (artwork_id, language_code, title, description, purchase_url, is_reviewed)
+          VALUES (${id}, 'en', ${titleT.en ?? ''}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
+          ON CONFLICT (artwork_id, language_code) DO UPDATE SET
+            title = EXCLUDED.title, description = EXCLUDED.description,
+            is_reviewed = false, updated_at = now()
+        `;
+        const translationWarning = titleT.failed;
+        return NextResponse.json({ data: { ...artwork, zh_translation: zhTranslation }, translation_warning: translationWarning });
       }
     }
 

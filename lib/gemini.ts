@@ -40,11 +40,12 @@ export async function translateText(
 
 export interface TranslationResult {
   en: string | null;
+  failed: boolean;
 }
 
 export async function translateBoth(zhText: string): Promise<TranslationResult> {
   const en = await translateText(zhText, 'en');
-  return { en };
+  return { en, failed: en === null };
 }
 
 export interface ImportedArtwork {

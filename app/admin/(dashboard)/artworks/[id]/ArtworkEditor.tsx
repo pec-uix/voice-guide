@@ -75,6 +75,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [saveWarning, setSaveWarning] = useState('');
   const [segFormatError, setSegFormatError] = useState('');
 
   const markDirty = () => setIsDirty(true);
@@ -261,7 +262,9 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     }
 
     setSaving(true);
+    setSaveWarning('');
     const errors: string[] = [];
+    let hasTranslationWarning = false;
 
     try {
       // Save metadata
@@ -279,6 +282,9 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       if (!metaRes.ok) {
         const j = await metaRes.json();
         errors.push(j.error ?? '基本資料儲存失敗');
+      } else {
+        const j = await metaRes.json();
+        if (j.translation_warning) hasTranslationWarning = true;
       }
 
       // Save translations (skip languages with no content and no existing DB row)
@@ -307,9 +313,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ segments: parsed }),
         });
+        const sJson = await sRes.json();
         if (!sRes.ok) {
-          const j = await sRes.json();
-          errors.push(j.error ?? '逐字稿儲存失敗');
+          errors.push(sJson.error ?? '逐字稿儲存失敗');
+        } else if (sJson.translation_warning) {
+          hasTranslationWarning = true;
         }
       }
 
@@ -317,6 +325,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         setSaveError(errors.join('；'));
       } else {
         setIsDirty(false);
+        if (hasTranslationWarning) setSaveWarning('自動翻譯失敗，請手動填寫英文內容（待校對標記已標出）');
         router.refresh();
       }
     } catch {
@@ -596,6 +605,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
               {saving ? '儲存中…' : saveError ? '' : '有未儲存的變更'}
             </span>
             {saveError && <p className="text-red-500 text-sm flex-1">{saveError}</p>}
+            {!saveError && saveWarning && <p className="text-amber-600 text-sm flex-1">{saveWarning}</p>}
             <button
               onClick={handleSaveAll}
               disabled={saving || !isDirty}

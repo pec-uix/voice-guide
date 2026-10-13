@@ -64,32 +64,30 @@ export async function POST(req: NextRequest) {
       RETURNING *
     `;
 
-    // 3. Auto-translate to en
+    // 3. Auto-translate to en (always create EN row even if Gemini fails)
     const [titleT, descT] = await Promise.all([
-      title ? translateBoth(title) : Promise.resolve({ en: null }),
-      description ? translateBoth(description) : Promise.resolve({ en: null }),
+      title ? translateBoth(title) : Promise.resolve({ en: null, failed: false }),
+      description ? translateBoth(description) : Promise.resolve({ en: null, failed: false }),
     ]);
 
-    let enT = null;
-    if (titleT.en) {
-      const [row] = await sql`
-        INSERT INTO artwork_translations
-          (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-        VALUES
-          (${artwork.id}, 'en', ${titleT.en}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
-        ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-          title = EXCLUDED.title, description = EXCLUDED.description, updated_at = now()
-        RETURNING *
-      `;
-      enT = row;
-    }
+    const translationWarning = titleT.failed;
+    const [enT] = await sql`
+      INSERT INTO artwork_translations
+        (artwork_id, language_code, title, description, purchase_url, is_reviewed)
+      VALUES
+        (${artwork.id}, 'en', ${titleT.en ?? ''}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
+      ON CONFLICT (artwork_id, language_code) DO UPDATE SET
+        title = EXCLUDED.title, description = EXCLUDED.description, updated_at = now()
+      RETURNING *
+    `;
 
     return NextResponse.json(
       {
         data: {
           ...artwork,
-          translations: [zhTranslation, ...(enT ? [enT] : [])],
+          translations: [zhTranslation, enT],
         },
+        translation_warning: translationWarning,
       },
       { status: 201 },
     );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Artwork, ArtworkTranslation, LanguageCode } from '@/lib/types';
 import { t } from '@/lib/i18n';
 
@@ -31,13 +32,19 @@ function formatTime(sec: number) {
 }
 
 export default function ArtworkViewer({ artwork, translations, segments, initialLang }: Props) {
+  const router = useRouter();
   const [lang, setLang] = useState<LanguageCode>(initialLang);
+
+  const handleLangChange = (newLang: LanguageCode) => {
+    setLang(newLang);
+    router.replace(`?lang=${newLang}`, { scroll: false });
+  };
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const segmentRefs = useRef<(HTMLParagraphElement | null)[]>([]);
+  const segmentRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scanRecorded = useRef(false);
 
   const translation =
@@ -126,7 +133,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           {LANGS.map((l) => (
             <button
               key={l.code}
-              onClick={() => setLang(l.code)}
+              onClick={() => handleLangChange(l.code)}
               className={`text-xs tracking-wider transition-colors pb-0.5 ${
                 lang === l.code
                   ? 'text-zinc-900 border-b border-zinc-900'
@@ -242,7 +249,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                   '';
                 const isActive = idx === activeIdx;
                 return (
-                  <p
+                  <button
                     key={seg.id}
                     ref={(el) => { segmentRefs.current[idx] = el; }}
                     onClick={() => {
@@ -251,15 +258,16 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                         setCurrentTime(seg.start_time);
                       }
                     }}
-                    className={`text-base leading-loose cursor-pointer transition-all flex items-start gap-3 ${
+                    className={`w-full text-left bg-transparent border-none p-0 text-base leading-loose cursor-pointer transition-all flex items-start gap-3 ${
                       isActive ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
                     }`}
+                    aria-label={`跳至 ${formatTime(seg.start_time)}：${text}`}
                   >
                     <span className={`mt-2.5 w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all ${
                       isActive ? 'bg-zinc-900' : 'bg-zinc-200'
                     }`} />
                     <span className={isActive ? 'font-medium' : ''}>{text}</span>
-                  </p>
+                  </button>
                 );
               })}
             </div>

@@ -81,6 +81,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Insert new segments and zh-TW texts, then auto-translate
     const results = [];
+    let translationWarning = false;
     for (const seg of segments) {
       const [segment] = await sql`
         INSERT INTO transcript_segments (artwork_id, segment_index, start_time, end_time)
@@ -94,23 +95,20 @@ export async function POST(req: NextRequest, { params }: Params) {
         RETURNING *
       `;
 
-      // Auto-translate segment text to English
-      const { en } = await translateBoth(seg.text);
-      const otherTexts = [];
+      // Auto-translate segment text to English (always insert even if Gemini fails)
+      const { en, failed } = await translateBoth(seg.text);
+      if (failed) translationWarning = true;
 
-      if (en) {
-        const [enText] = await sql`
-          INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
-          VALUES (${segment.id}, 'en', ${en}, false)
-          RETURNING *
-        `;
-        otherTexts.push(enText);
-      }
+      const [enText] = await sql`
+        INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
+        VALUES (${segment.id}, 'en', ${en ?? ''}, false)
+        RETURNING *
+      `;
 
-      results.push({ ...segment, texts: [zhText, ...otherTexts] });
+      results.push({ ...segment, texts: [zhText, enText] });
     }
 
-    return NextResponse.json({ data: results }, { status: 201 });
+    return NextResponse.json({ data: results, translation_warning: translationWarning }, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to save segments' }, { status: 500 });
