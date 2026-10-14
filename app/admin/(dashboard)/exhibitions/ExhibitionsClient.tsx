@@ -27,6 +27,7 @@ interface Exhibition {
 interface ImportedArtwork {
   productId?: number;
   title: string;
+  title_en?: string | null;
   artist?: string;
   year?: string;
   description?: string;
@@ -370,12 +371,14 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                   {editArtworks.map(aw => (
                     <Link key={aw.id} href={`/admin/artworks/${aw.id}`} className="group block">
-                      {aw.cover_image_url ? (
-                        <img src={aw.cover_image_url} alt={aw.title ?? aw.code}
-                          className="w-full h-auto block rounded-xl mb-2" />
-                      ) : (
-                        <div className="w-full h-24 bg-stone-100 rounded-xl mb-2 flex items-center justify-center text-stone-300 text-xl">♪</div>
-                      )}
+                      <div className="w-full bg-stone-50 rounded-xl overflow-hidden mb-2" style={{ aspectRatio: '1/1' }}>
+                        {aw.cover_image_url ? (
+                          <img src={aw.cover_image_url} alt={aw.title ?? aw.code}
+                            className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-stone-300 text-xl">♪</div>
+                        )}
+                      </div>
                       <p className="font-mono text-xs text-stone-400">{aw.code}</p>
                       <p className="text-xs text-stone-800 font-medium line-clamp-2 leading-snug group-hover:underline underline-offset-2">
                         {aw.title ?? '（無標題）'}

@@ -53,6 +53,38 @@ function unflatten(arr: unknown[], idx: number, seen = new Map<number, unknown>(
   return val;
 }
 
+export interface ParsedProduct {
+  title: string;
+  description: string;
+  artist: string;
+  imageUrl: string;
+}
+
+export function parseNuxtProductPage(html: string): ParsedProduct | null {
+  const match = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!match) return null;
+  try {
+    const arr = JSON.parse(match[1].trim()) as unknown[];
+    const root = unflatten(arr, 0) as { data: Record<string, unknown> };
+    if (!root?.data) return null;
+
+    const product = Object.values(root.data)[0] as Record<string, unknown>;
+    if (!product) return null;
+
+    const images = (product.imageUrlArray as string[]) ?? [];
+    const imageUrl = images[0]?.replace('/products-thumbnail/', '/products/') ?? '';
+
+    return {
+      title: ((product.productName as string) ?? '').trim(),
+      description: (product.productDescription as string) ?? '',
+      artist: (product.supplierName as string) ?? '',
+      imageUrl,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function parseNuxtExhibition(html: string): NuxtParseResult | null {
   const match = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!match) return null;

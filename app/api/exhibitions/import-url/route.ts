@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { parseExhibitionFromHtml } from '@/lib/gemini';
-import { parseNuxtExhibition } from '@/lib/nuxt-parser';
+import { parseNuxtExhibition, parseNuxtProductPage } from '@/lib/nuxt-parser';
+
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+async function fetchHtml(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch { return null; }
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -13,21 +26,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const pageRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!pageRes.ok) {
+    const html = await fetchHtml(url);
+    if (!html) {
       return NextResponse.json({ error: '無法取得頁面，請確認網址是否正確' }, { status: 400 });
     }
-
-    const html = await pageRes.text();
 
     // Try Nuxt __NUXT_DATA__ parser first (richer data, no Gemini quota needed)
     const nuxtResult = parseNuxtExhibition(html);
     if (nuxtResult) {
+      // For uniart artworks, fetch English titles in parallel
+      const artworksWithEn = await Promise.all(
+        nuxtResult.artworks.map(async aw => {
+          if (!aw.productId) return { ...aw, title_en: null };
+          const enHtml = await fetchHtml(`https://www.uniart.com.tw/en/products/${aw.productId}`);
+          const enProduct = enHtml ? parseNuxtProductPage(enHtml) : null;
+          return { ...aw, title_en: enProduct?.title ?? null };
+        })
+      );
+
       return NextResponse.json({
         data: {
           name: nuxtResult.exhibition.name,
@@ -36,7 +52,7 @@ export async function POST(req: NextRequest) {
           startDate: nuxtResult.exhibition.startDate,
           endDate: nuxtResult.exhibition.endDate,
           location: nuxtResult.exhibition.location,
-          artworks: nuxtResult.artworks,
+          artworks: artworksWithEn,
         },
       });
     }

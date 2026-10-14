@@ -101,8 +101,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       if (d.artist) setMeta(m => ({ ...m, artist: d.artist }));
       if (d.year) setMeta(m => ({ ...m, year: String(d.year) }));
       if (d.cover_image_url) setMeta(m => ({ ...m, cover_image_url: d.cover_image_url }));
+      if (d.purchase_url) setTForms(f => ({ ...f, 'zh-TW': { ...f['zh-TW'], purchase_url: d.purchase_url } }));
       if (d.title) setTForms(f => ({ ...f, 'zh-TW': { ...f['zh-TW'], title: d.title } }));
       if (d.description) setTForms(f => ({ ...f, 'zh-TW': { ...f['zh-TW'], description: d.description } }));
+      if (d.title_en) setTForms(f => ({ ...f, 'en': { ...f['en'], title: d.title_en } }));
+      if (d.description_en) setTForms(f => ({ ...f, 'en': { ...f['en'], description: d.description_en } }));
       setImportDone(true);
       markDirty();
     } catch { setImportError('網路錯誤'); }
