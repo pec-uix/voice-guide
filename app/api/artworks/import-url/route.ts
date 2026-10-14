@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { parseArtworkFromHtml } from '@/lib/gemini';
+import { parseArtworkFromHtml, translateText } from '@/lib/gemini';
 import { parseNuxtProductPage } from '@/lib/nuxt-parser';
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -37,12 +37,15 @@ export async function POST(req: NextRequest) {
       const zh = zhHtml ? parseNuxtProductPage(zhHtml) : null;
       const en = enHtml ? parseNuxtProductPage(enHtml) : null;
       if (zh) {
+        // Use English page content if available, otherwise fall back to Gemini translation
+        const titleEn = en?.title?.trim() || (await translateText(zh.title, 'en'));
+        const descEn = en?.description?.trim() || (zh.description ? await translateText(zh.description, 'en') : null);
         return NextResponse.json({
           data: {
             title: zh.title,
-            title_en: en?.title ?? null,
+            title_en: titleEn ?? null,
             description: zh.description,
-            description_en: en?.description ?? null,
+            description_en: descEn ?? null,
             artist: zh.artist,
             cover_image_url: zh.imageUrl || null,
             purchase_url: `https://www.uniart.com.tw/products/${id}`,
