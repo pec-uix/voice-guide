@@ -31,7 +31,10 @@ export async function translateText(
     }
 
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
+    const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
+    if (!raw) return null;
+    // Strip markdown formatting (bold/italic asterisks, backticks) that Gemini sometimes adds
+    return raw.replace(/^[*_`]+|[*_`]+$/g, '').trim() || null;
   } catch (err) {
     console.error('[gemini] fetch error:', err);
     return null;
