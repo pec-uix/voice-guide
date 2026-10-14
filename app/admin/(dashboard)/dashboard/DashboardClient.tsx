@@ -22,6 +22,10 @@ interface ExhibitionRow {
   id: string; name: string; code: string;
   entry_scans: number; review_clicks: number; artwork_count: number;
 }
+interface FeedbackRow {
+  id: string; exhibition_id: string; exhibition_name: string;
+  rating: number; comment: string | null; language_code: string; created_at: string;
+}
 
 interface Props {
   totals: Totals;
@@ -29,6 +33,7 @@ interface Props {
   langDist: LangRow[];
   artworkStats: ArtworkRow[];
   exhibitionStats: ExhibitionRow[];
+  feedback: FeedbackRow[];
 }
 
 const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English' };
@@ -36,14 +41,14 @@ const LANG_COLORS = ['#18181b', '#6366f1'];
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-2xl p-5">
-      <p className="text-xs text-zinc-500 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-zinc-900">{value.toLocaleString()}</p>
+    <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
+      <p className="text-xs text-stone-500 mb-1">{label}</p>
+      <p className="text-2xl font-bold text-stone-900">{value.toLocaleString()}</p>
     </div>
   );
 }
 
-export default function DashboardClient({ totals, daily, langDist, artworkStats, exhibitionStats }: Props) {
+export default function DashboardClient({ totals, daily, langDist, artworkStats, exhibitionStats, feedback }: Props) {
   const langData = langDist.map((r, i) => ({
     name: LANG_LABEL[r.language_code] ?? r.language_code,
     count: r.count,
@@ -52,7 +57,7 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-bold text-zinc-900">數據總覽</h1>
+      <h1 className="text-xl font-bold text-stone-900">數據總覽</h1>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -64,10 +69,10 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
       </div>
 
       {/* Daily trend */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-4">每日事件趨勢（近 30 天）</h2>
+      <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
+        <h2 className="text-base font-semibold text-stone-900 mb-4">每日事件趨勢（近 30 天）</h2>
         {daily.length === 0 ? (
-          <p className="text-sm text-zinc-400 py-8 text-center">尚無資料</p>
+          <p className="text-sm text-stone-400 py-8 text-center">尚無資料</p>
         ) : (
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={daily} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
@@ -86,10 +91,10 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Language distribution */}
-        <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-          <h2 className="text-base font-semibold text-zinc-900 mb-4">語言分佈（掃描）</h2>
+        <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-stone-900 mb-4">語言分佈（掃描）</h2>
           {langData.length === 0 ? (
-            <p className="text-sm text-zinc-400 py-8 text-center">尚無資料</p>
+            <p className="text-sm text-stone-400 py-8 text-center">尚無資料</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={langData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
@@ -108,26 +113,26 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
         </section>
 
         {/* Exhibition overview */}
-        <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-          <h2 className="text-base font-semibold text-zinc-900 mb-4">展覽概況</h2>
+        <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
+          <h2 className="text-base font-semibold text-stone-900 mb-4">展覽概況</h2>
           {exhibitionStats.length === 0 ? (
-            <p className="text-sm text-zinc-400 py-8 text-center">尚無展覽</p>
+            <p className="text-sm text-stone-400 py-8 text-center">尚無展覽</p>
           ) : (
-            <div className="divide-y divide-zinc-100">
+            <div className="divide-y divide-stone-100">
               {exhibitionStats.map(ex => (
                 <div key={ex.id} className="py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-zinc-900 truncate">{ex.name}</p>
-                    <p className="text-xs text-zinc-400">{ex.artwork_count} 件作品</p>
+                    <p className="text-sm font-medium text-stone-900 truncate">{ex.name}</p>
+                    <p className="text-xs text-stone-400">{ex.artwork_count} 件作品</p>
                   </div>
                   <div className="flex gap-4 text-right shrink-0">
                     <div>
-                      <p className="text-xs text-zinc-400">入場掃描</p>
-                      <p className="text-sm font-semibold text-zinc-900">{Number(ex.entry_scans).toLocaleString()}</p>
+                      <p className="text-xs text-stone-400">入場掃描</p>
+                      <p className="text-sm font-semibold text-stone-900">{Number(ex.entry_scans).toLocaleString()}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-zinc-400">評論點擊</p>
-                      <p className="text-sm font-semibold text-zinc-900">{Number(ex.review_clicks).toLocaleString()}</p>
+                      <p className="text-xs text-stone-400">評論點擊</p>
+                      <p className="text-sm font-semibold text-stone-900">{Number(ex.review_clicks).toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -138,15 +143,15 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
       </div>
 
       {/* Artwork rankings */}
-      <section className="bg-white border border-zinc-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-zinc-900 mb-4">作品成效排行（Top 20）</h2>
+      <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
+        <h2 className="text-base font-semibold text-stone-900 mb-4">作品成效排行（Top 20）</h2>
         {artworkStats.length === 0 ? (
-          <p className="text-sm text-zinc-400 py-8 text-center">尚無資料</p>
+          <p className="text-sm text-stone-400 py-8 text-center">尚無資料</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-zinc-500 border-b border-zinc-100">
+                <tr className="text-xs text-stone-500 border-b border-stone-100">
                   <th className="text-left py-2 pr-4 font-medium">#</th>
                   <th className="text-left py-2 pr-4 font-medium">作品</th>
                   <th className="text-right py-2 pr-4 font-medium">掃描</th>
@@ -155,22 +160,53 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
                   <th className="text-right py-2 font-medium">購買</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-50">
+              <tbody className="divide-y divide-stone-50">
                 {artworkStats.map((a, i) => (
-                  <tr key={a.id} className="hover:bg-zinc-50 transition-colors">
-                    <td className="py-2.5 pr-4 text-zinc-400 tabular-nums">{i + 1}</td>
+                  <tr key={a.id} className="hover:bg-stone-50 transition-colors">
+                    <td className="py-2.5 pr-4 text-stone-400 tabular-nums">{i + 1}</td>
                     <td className="py-2.5 pr-4">
-                      <p className="font-medium text-zinc-900 truncate max-w-[180px]">{a.title}</p>
-                      <p className="text-xs text-zinc-400">{a.code}</p>
+                      <p className="font-medium text-stone-900 truncate max-w-[180px]">{a.title}</p>
+                      <p className="text-xs text-stone-400">{a.code}</p>
                     </td>
-                    <td className="py-2.5 pr-4 text-right tabular-nums text-zinc-700">{Number(a.scans).toLocaleString()}</td>
-                    <td className="py-2.5 pr-4 text-right tabular-nums text-zinc-700">{Number(a.plays).toLocaleString()}</td>
-                    <td className="py-2.5 pr-4 text-right tabular-nums text-zinc-700">{Number(a.completes).toLocaleString()}</td>
-                    <td className="py-2.5 text-right tabular-nums text-zinc-700">{Number(a.purchases).toLocaleString()}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-stone-700">{Number(a.scans).toLocaleString()}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-stone-700">{Number(a.plays).toLocaleString()}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-stone-700">{Number(a.completes).toLocaleString()}</td>
+                    <td className="py-2.5 text-right tabular-nums text-stone-700">{Number(a.purchases).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      {/* Visitor feedback */}
+      <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-stone-900">參觀者回饋</h2>
+          {feedback.length > 0 && (
+            <span className="text-xs text-stone-400">
+              平均 {(feedback.reduce((s, f) => s + f.rating, 0) / feedback.length).toFixed(1)} 星
+              ／共 {feedback.length} 則
+            </span>
+          )}
+        </div>
+        {feedback.length === 0 ? (
+          <p className="text-sm text-stone-400 py-8 text-center">尚無回饋</p>
+        ) : (
+          <div className="divide-y divide-stone-100 max-h-96 overflow-y-auto">
+            {feedback.map(f => (
+              <div key={f.id} className="py-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-amber-400 text-sm">{'★'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</span>
+                  <span className="text-xs text-stone-400">{f.exhibition_name}</span>
+                  <span className="text-xs text-stone-300 ml-auto">
+                    {new Date(f.created_at).toLocaleDateString('zh-TW')}
+                  </span>
+                </div>
+                {f.comment && <p className="text-sm text-stone-700 leading-relaxed">{f.comment}</p>}
+              </div>
+            ))}
           </div>
         )}
       </section>

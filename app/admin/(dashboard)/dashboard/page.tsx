@@ -66,6 +66,15 @@ export default async function DashboardPage() {
     ORDER BY entry_scans DESC
   `;
 
+  // ── 6. 參觀者回饋 ───────────────────────────────────────────
+  const feedback = await sql`
+    SELECT f.*, ex.name AS exhibition_name
+    FROM exhibition_feedback f
+    JOIN exhibitions ex ON ex.id = f.exhibition_id
+    ORDER BY f.created_at DESC
+    LIMIT 100
+  `;
+
   return (
     <DashboardClient
       totals={totals as never}
@@ -73,6 +82,7 @@ export default async function DashboardPage() {
       langDist={langDist as never}
       artworkStats={artworkStats as never}
       exhibitionStats={exhibitionStats as never}
+      feedback={feedback as never}
     />
   );
 }

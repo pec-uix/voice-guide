@@ -31,17 +31,18 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
     const body = await req.json();
-    const { code, name, description, review_url } = body;
+    const { code, name, description, review_url, cover_image_url } = body;
 
     const [existing] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const [row] = await sql`
       UPDATE exhibitions SET
-        code       = COALESCE(${code ?? null}, code),
-        name       = COALESCE(${name ?? null}, name),
-        description = ${description !== undefined ? description : sql`description`},
-        review_url  = ${review_url !== undefined ? review_url : sql`review_url`}
+        code            = COALESCE(${code ?? null}, code),
+        name            = COALESCE(${name ?? null}, name),
+        description     = ${description !== undefined ? description : sql`description`},
+        review_url      = ${review_url !== undefined ? review_url : sql`review_url`},
+        cover_image_url = ${cover_image_url !== undefined ? cover_image_url : sql`cover_image_url`}
       WHERE id = ${id}
       RETURNING *
     `;

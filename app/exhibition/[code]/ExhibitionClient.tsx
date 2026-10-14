@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import type { LanguageCode } from '@/lib/types';
 import { t } from '@/lib/i18n';
+import FeedbackModal, { isFeedbackSubmitted } from '@/components/FeedbackModal';
 
 interface Exhibition {
   id: string;
@@ -39,9 +40,17 @@ const LANGS = [
   { code: 'en' as LanguageCode, label: 'EN' },
 ];
 
+const TRIGGER_KEY = (id: string) => `vg_fb_trigger_${id}`;
+
+export function setFeedbackTrigger(exhibitionId: string) {
+  try { localStorage.setItem(TRIGGER_KEY(exhibitionId), '1'); } catch {}
+}
+
 export default function ExhibitionClient({ exhibition, artworks, translations, initialLang }: Props) {
   const [lang, setLang] = useState<LanguageCode>(initialLang);
+  const [showFeedback, setShowFeedback] = useState(false);
   const scanRecorded = useRef(false);
+  const pageEntryTime = useRef(Date.now());
 
   useEffect(() => {
     if (scanRecorded.current) return;
@@ -53,21 +62,42 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Show feedback modal: triggered by last-artwork audio end OR page-leave detection
+  useEffect(() => {
+    const exId = exhibition.id;
+
+    // If already submitted, do nothing
+    if (isFeedbackSubmitted(exId)) return;
+
+    // If trigger flag was set (e.g. from artwork page), show after short delay
+    const triggerKey = TRIGGER_KEY(exId);
+    const hasTrigger = (() => { try { return !!localStorage.getItem(triggerKey); } catch { return false; } })();
+    if (hasTrigger) {
+      try { localStorage.removeItem(triggerKey); } catch {}
+      const t = setTimeout(() => setShowFeedback(true), 600);
+      return () => clearTimeout(t);
+    }
+
+    // Detect page-leave via visibilitychange (most reliable on mobile)
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'hidden') return;
+      const elapsed = Date.now() - pageEntryTime.current;
+      if (elapsed < 10_000) return; // ignore accidental quick exits
+      if (!isFeedbackSubmitted(exId)) {
+        try { localStorage.setItem(triggerKey, '1'); } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [exhibition.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const getTitle = (artworkId: string) =>
     translations.find((tr) => tr.artwork_id === artworkId && tr.language_code === lang)?.title ??
     translations.find((tr) => tr.artwork_id === artworkId && tr.language_code === 'zh-TW')?.title ??
     artworkId;
 
-  const handleReviewClick = () => {
-    fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exhibition_id: exhibition.id, event_type: 'click_review', language_code: lang }),
-    }).catch(() => {});
-  };
-
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f7f4ef]">
       <div className="max-w-xl mx-auto px-6 pt-10 pb-24">
 
         {/* Language switcher */}
@@ -78,8 +108,8 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
               onClick={() => setLang(l.code)}
               className={`text-xs tracking-wider transition-colors pb-0.5 ${
                 lang === l.code
-                  ? 'text-zinc-900 border-b border-zinc-900'
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  ? 'text-stone-900 border-b border-stone-800'
+                  : 'text-stone-400 hover:text-stone-600'
               }`}
             >
               {l.label}
@@ -89,24 +119,24 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
 
         {/* Exhibition header */}
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-zinc-900 leading-tight mb-3">
+          <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight mb-3">
             {exhibition.name}
           </h1>
           {exhibition.description && (
-            <p className="text-zinc-500 text-sm leading-relaxed">{exhibition.description}</p>
+            <p className="text-stone-500 text-sm leading-relaxed">{exhibition.description}</p>
           )}
         </div>
 
-        <div className="border-t border-zinc-100 mb-8" />
+        <div className="border-t border-stone-200 mb-8" />
 
         {/* Works label */}
-        <p className="text-xs text-zinc-400 tracking-widest uppercase mb-6">
+        <p className="text-xs text-stone-400 tracking-widest uppercase mb-6">
           {t('works', lang)}
         </p>
 
         {/* Artwork grid */}
         {artworks.length === 0 ? (
-          <p className="text-zinc-400 text-sm py-16 text-center">尚無作品</p>
+          <p className="text-stone-400 text-sm py-16 text-center">尚無作品</p>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-8 mb-12">
             {artworks.map((aw) => (
@@ -124,17 +154,17 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full bg-zinc-100 flex items-center justify-center">
-                      <span className="text-zinc-300 text-3xl">♪</span>
+                    <div className="w-full h-full bg-stone-100 flex items-center justify-center">
+                      <span className="text-stone-300 text-3xl">♪</span>
                     </div>
                   )}
                 </div>
 
                 {/* Text */}
-                <p className="text-xs text-zinc-400 mb-1 tracking-wider">
+                <p className="text-xs text-stone-400 mb-1 tracking-wider">
                   {aw.artist ?? ''}
                 </p>
-                <p className="text-sm font-medium text-zinc-900 leading-snug line-clamp-2 group-hover:underline underline-offset-2 transition-all">
+                <p className="text-sm font-medium text-stone-900 leading-snug line-clamp-2 group-hover:underline underline-offset-2 transition-all">
                   {getTitle(aw.id)}
                 </p>
               </Link>
@@ -142,19 +172,22 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
           </div>
         )}
 
-        {/* Review button */}
-        {exhibition.review_url && (
-          <a
-            href={exhibition.review_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={handleReviewClick}
-            className="block w-full text-center border border-zinc-900 text-zinc-900 py-4 text-sm font-medium tracking-wider hover:bg-zinc-900 hover:text-white transition-colors"
-          >
-            {t('review', lang)} ↗
-          </a>
-        )}
+        {/* Feedback button — manual trigger */}
+        <button
+          onClick={() => setShowFeedback(true)}
+          className="block w-full text-center border border-stone-300 text-stone-500 py-4 text-sm tracking-wider hover:border-stone-500 hover:text-stone-700 transition-colors rounded-lg"
+        >
+          {t('feedbackTitle', lang)}
+        </button>
       </div>
+
+      {showFeedback && (
+        <FeedbackModal
+          exhibitionId={exhibition.id}
+          lang={lang}
+          onClose={() => setShowFeedback(false)}
+        />
+      )}
     </div>
   );
 }

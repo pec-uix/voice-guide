@@ -1,16 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
+
+interface ArtworkRow {
+  id: string;
+  code: string;
+  cover_image_url: string | null;
+  artist: string | null;
+  title: string | null;
+  audio_url: string | null;
+}
 
 interface Exhibition {
   id: string;
   code: string;
   name: string;
   description: string | null;
-  review_url: string | null;
+  cover_image_url: string | null;
   artwork_count: number;
   created_at: string;
 }
@@ -34,7 +43,7 @@ const BASE_URL = typeof window !== 'undefined'
   : process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
 
 function emptyForm() {
-  return { code: '', name: '', description: '', review_url: '' };
+  return { code: '', name: '', description: '', cover_image_url: '' };
 }
 
 export default function ExhibitionsClient({ exhibitions: initial }: Props) {
@@ -53,6 +62,42 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   const [importedArtworks, setImportedArtworks] = useState<ImportedArtwork[] | null>(null);
   const [batchSaving, setBatchSaving] = useState(false);
   const [batchSuccess, setBatchSuccess] = useState('');
+  const [codeAutoFilled, setCodeAutoFilled] = useState(false);
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageError, setImageError] = useState('');
+
+  const [editArtworks, setEditArtworks] = useState<ArtworkRow[]>([]);
+  const [editArtworksLoading, setEditArtworksLoading] = useState(false);
+
+  useEffect(() => {
+    if (!editId) { setEditArtworks([]); return; }
+    setEditArtworksLoading(true);
+    fetch(`/api/artworks?exhibition_id=${editId}`)
+      .then(r => r.json())
+      .then(j => setEditArtworks(j.data ?? []))
+      .catch(() => setEditArtworks([]))
+      .finally(() => setEditArtworksLoading(false));
+  }, [editId]);
+
+  const handleImageUpload = async (id: string) => {
+    if (!imageFile) return;
+    setImageUploading(true); setImageError('');
+    try {
+      const fd = new FormData();
+      fd.append('image', imageFile);
+      const res = await fetch(`/api/exhibitions/${id}/image`, { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) { setImageError(json.error ?? '上傳失敗'); return; }
+      setExhibitions(prev => prev.map(e =>
+        e.id === id ? { ...e, cover_image_url: json.data.cover_image_url } : e
+      ));
+      setForm(f => ({ ...f, cover_image_url: json.data.cover_image_url }));
+      setImageFile(null);
+    } catch { setImageError('網路錯誤'); }
+    finally { setImageUploading(false); }
+  };
 
   const resetImport = () => {
     setImportUrl('');
@@ -63,14 +108,14 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
   const openCreate = () => {
     setEditId(null); setForm(emptyForm()); setError(''); setShowForm(true);
-    resetImport();
+    resetImport(); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
   };
   const openEdit = (ex: Exhibition) => {
     setEditId(ex.id);
-    setForm({ code: ex.code, name: ex.name, description: ex.description ?? '', review_url: ex.review_url ?? '' });
+    setForm({ code: ex.code, name: ex.name, description: ex.description ?? '', cover_image_url: ex.cover_image_url ?? '' });
     setError('');
     setShowForm(true);
-    resetImport();
+    resetImport(); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
   };
 
   const handleImportUrl = async () => {
@@ -85,8 +130,12 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       const json = await res.json();
       if (!res.ok) { setImportError(json.error ?? '匯入失敗'); return; }
       const d = json.data;
-      if (d.name) setForm(f => ({ ...f, name: d.name }));
-      if (d.description) setForm(f => ({ ...f, description: d.description }));
+      setForm(f => ({
+        ...f,
+        ...(d.name ? { name: d.name } : {}),
+        ...(d.description ? { description: d.description } : {}),
+        ...(d.cover_image_url ? { cover_image_url: d.cover_image_url } : {}),
+      }));
       if (d.artworks?.length) setImportedArtworks(d.artworks);
     } catch { setImportError('網路錯誤'); }
     finally { setImporting(false); }
@@ -103,6 +152,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
           code: form.code.trim(),
           name: form.name.trim(),
           description: form.description || null,
+          cover_image_url: form.cover_image_url || null,
           artworks: importedArtworks,
         }),
       });
@@ -148,7 +198,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-zinc-900">展覽管理</h1>
+        <h1 className="text-xl font-bold text-stone-900">展覽管理</h1>
         <button onClick={openCreate} className="btn-primary">＋ 新增展覽</button>
       </div>
 
@@ -160,8 +210,8 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
       {/* Form panel */}
       {showForm && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-6">
-          <h2 className="text-base font-semibold text-zinc-900 mb-4">
+        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6 mb-6">
+          <h2 className="text-base font-semibold text-stone-900 mb-4">
             {editId ? '編輯展覽' : '新增展覽'}
           </h2>
 
@@ -175,7 +225,16 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                   className="form-input flex-1 text-sm"
                   placeholder="https://www.uniart.com.tw/topics/..."
                   value={importUrl}
-                  onChange={e => { setImportUrl(e.target.value); setImportedArtworks(null); setImportError(''); setBatchSuccess(''); }}
+                  onChange={e => {
+                    const url = e.target.value;
+                    setImportUrl(url);
+                    setImportedArtworks(null); setImportError(''); setBatchSuccess('');
+                    const match = url.trim().match(/\/(\d+)\/?(?:\?.*)?$/);
+                    if (match) {
+                      setForm(f => (codeAutoFilled || !f.code) ? { ...f, code: match[1] } : f);
+                      setCodeAutoFilled(true);
+                    }
+                  }}
                 />
                 <button onClick={handleImportUrl} disabled={importing || !importUrl.trim()} className="btn-primary text-sm whitespace-nowrap">
                   {importing ? '解析中…' : '解析'}
@@ -210,8 +269,8 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
             <div>
               <label className="form-label">展覽代碼 *</label>
               <input className="form-input" placeholder="例：EXPO01" value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
-              <p className="text-xs text-zinc-400 mt-1">用於 QR Code 網址，建立後建議不要更改</p>
+                onChange={e => { setCodeAutoFilled(false); setForm(f => ({ ...f, code: e.target.value })); }} />
+              <p className="text-xs text-stone-400 mt-1">用於 QR Code 網址，建立後建議不要更改</p>
             </div>
             <div>
               <label className="form-label">展覽名稱 *</label>
@@ -220,17 +279,48 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
             </div>
             <div className="sm:col-span-2">
               <label className="form-label">展覽簡介</label>
-              <textarea className="form-input" rows={2} value={form.description}
+              <textarea className="form-input" rows={8} value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
-            <div className="sm:col-span-2">
-              <label className="form-label">評價連結（Google 評價等）</label>
-              <input className="form-input" placeholder="https://..." value={form.review_url}
-                onChange={e => setForm(f => ({ ...f, review_url: e.target.value }))} />
-            </div>
           </div>
+
+          {/* Banner image */}
+          <div className="mt-4 pt-4 border-t border-stone-100">
+            <label className="form-label">展覽封面圖</label>
+            {form.cover_image_url && (
+              <img src={form.cover_image_url} alt="封面圖預覽"
+                className="w-full h-auto rounded-xl mb-3" />
+            )}
+            <input
+              className="form-input text-sm"
+              placeholder="貼上圖片網址（https://...）"
+              value={form.cover_image_url ?? ''}
+              onChange={e => setForm(f => ({ ...f, cover_image_url: e.target.value }))}
+            />
+            <p className="text-xs text-stone-400 mt-1">圖片將以原始比例顯示，建議寬度至少 1000px</p>
+            {editId && (
+              <div className="flex items-center gap-2 flex-wrap mt-2">
+                <span className="text-xs text-stone-400">或上傳檔案：</span>
+                <label className="btn-ghost cursor-pointer text-xs">
+                  選擇圖片
+                  <input type="file" accept="image/*" className="sr-only"
+                    onChange={e => { setImageFile(e.target.files?.[0] ?? null); setImageError(''); }} />
+                </label>
+                {imageFile && (
+                  <>
+                    <span className="text-xs text-stone-500">{imageFile.name}</span>
+                    <button onClick={() => handleImageUpload(editId)} disabled={imageUploading} className="btn-primary text-xs">
+                      {imageUploading ? '上傳中…' : '上傳至 Cloudinary'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {imageError && <p className="text-red-500 text-xs mt-1">{imageError}</p>}
+          </div>
+
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 flex-wrap">
             {importedArtworks && !editId ? (
               <button onClick={handleBatchImport} disabled={batchSaving} className="btn-primary">
                 {batchSaving ? '建立中…' : `一鍵建立展覽 ＋ ${importedArtworks.length} 件作品`}
@@ -241,55 +331,142 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
               </button>
             )}
             <button onClick={() => setShowForm(false)} className="btn-ghost">取消</button>
+            {editId && (() => {
+              const ex = exhibitions.find(e => e.id === editId);
+              if (!ex) return null;
+              return (
+                <a
+                  href={`/exhibition/${ex.code}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-ghost text-sm"
+                >
+                  前台預覽 ↗
+                </a>
+              );
+            })()}
           </div>
-        </div>
-      )}
 
-      {/* Exhibition list */}
-      {exhibitions.length === 0 ? (
-        <p className="text-zinc-400 text-sm py-12 text-center">尚無展覽，點上方「新增展覽」開始。</p>
-      ) : (
-        <div className="space-y-3">
-          {exhibitions.map(ex => (
-            <div key={ex.id} className="bg-white border border-zinc-200 rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-md">{ex.code}</span>
-                    <h3 className="font-semibold text-zinc-900">{ex.name}</h3>
-                  </div>
-                  {ex.description && <p className="text-sm text-zinc-500 mt-1 line-clamp-1">{ex.description}</p>}
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="text-xs text-zinc-400">{ex.artwork_count} 件作品</span>
-                    <Link href={`/admin/artworks?exhibition_id=${ex.id}`} className="text-xs text-blue-600 hover:underline">
-                      查看作品
-                    </Link>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => setQrId(qrId === ex.id ? null : ex.id)}
-                    className="btn-ghost text-xs">QR Code</button>
-                  <button onClick={() => openEdit(ex)} className="btn-ghost text-xs">編輯</button>
-                  <button onClick={() => handleDelete(ex.id, ex.name)}
-                    className="text-xs text-red-500 hover:text-red-700 border border-transparent hover:border-red-200 rounded-lg px-2 py-1 transition-colors">刪除</button>
-                </div>
+          {/* Artworks for this exhibition */}
+          {editId && (
+            <div className="mt-8 pt-6 border-t border-stone-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-stone-700">
+                  作品明細
+                  {editArtworks.length > 0 && (
+                    <span className="text-stone-400 font-normal ml-2">{editArtworks.length} 件</span>
+                  )}
+                </h3>
+                <Link href={`/admin/artworks?exhibition_id=${editId}`}
+                  className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors">
+                  管理作品 →
+                </Link>
               </div>
-
-              {/* QR Code panel */}
-              {qrId === ex.id && (
-                <div className="mt-4 pt-4 border-t border-zinc-100 flex flex-wrap gap-6 items-start">
-                  <div>
-                    <p className="text-xs font-medium text-zinc-500 mb-2">展覽入口 QR Code</p>
-                    <QRCodeDisplay
-                      url={`${BASE_URL}/exhibition/${ex.code}`}
-                      label={`exhibition-${ex.code}`}
-                    />
-                  </div>
+              {editArtworksLoading ? (
+                <p className="text-stone-400 text-sm py-6 text-center">載入中…</p>
+              ) : editArtworks.length === 0 ? (
+                <p className="text-stone-400 text-sm py-6 text-center">尚無作品</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {editArtworks.map(aw => (
+                    <Link key={aw.id} href={`/admin/artworks/${aw.id}`} className="group block">
+                      {aw.cover_image_url ? (
+                        <img src={aw.cover_image_url} alt={aw.title ?? aw.code}
+                          className="w-full h-auto block rounded-xl mb-2" />
+                      ) : (
+                        <div className="w-full h-24 bg-stone-100 rounded-xl mb-2 flex items-center justify-center text-stone-300 text-xl">♪</div>
+                      )}
+                      <p className="font-mono text-xs text-stone-400">{aw.code}</p>
+                      <p className="text-xs text-stone-800 font-medium line-clamp-2 leading-snug group-hover:underline underline-offset-2">
+                        {aw.title ?? '（無標題）'}
+                      </p>
+                      {aw.artist && <p className="text-xs text-stone-400 mt-0.5">{aw.artist}</p>}
+                      {!aw.audio_url && <p className="text-xs text-amber-500 mt-0.5">無音檔</p>}
+                    </Link>
+                  ))}
                 </div>
               )}
             </div>
-          ))}
+          )}
         </div>
+      )}
+
+      {/* Exhibition grid + artwork list — hidden while form is open */}
+      {!showForm && (
+        <>
+          {exhibitions.length === 0 ? (
+            <p className="text-stone-400 text-sm py-12 text-center">尚無展覽，點上方「新增展覽」開始。</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {exhibitions.map(ex => {
+                return (
+                  <div key={ex.id}
+                    onClick={() => openEdit(ex)}
+                    className="bg-[#faf7f2] border border-stone-200 rounded-2xl overflow-hidden flex flex-col transition-all cursor-pointer hover:border-stone-400 hover:shadow-md">
+
+                    {/* Banner */}
+                    <div className="w-full bg-stone-100 flex-shrink-0">
+                      {ex.cover_image_url ? (
+                        <img src={ex.cover_image_url} alt={ex.name}
+                          className="w-full h-auto block" />
+                      ) : (
+                        <div className="w-full h-36 flex flex-col items-center justify-center gap-2 text-stone-300">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" strokeWidth="1.5"
+                            stroke="currentColor" aria-hidden>
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <path d="M21 15l-5-5L5 21" />
+                          </svg>
+                          <span className="text-xs">尚未上傳封面圖</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Code + Name + actions */}
+                    <div className="p-4 flex flex-col gap-3 flex-1">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-md">{ex.code}</span>
+                          <h3 className="font-semibold text-stone-900 leading-snug">{ex.name}</h3>
+                        </div>
+                        {ex.description && (
+                          <p className="text-xs text-stone-400 mt-1 line-clamp-2">{ex.description}</p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between mt-auto">
+                        <span className="text-xs text-stone-400">{ex.artwork_count} 件作品</span>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={e => { e.stopPropagation(); setQrId(qrId === ex.id ? null : ex.id); }}
+                            className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2 py-1 transition-colors">
+                            QR
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(ex.id, ex.name); }}
+                            className="text-xs text-red-400 hover:text-red-600 transition-colors px-1">
+                            刪除
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* QR Code panel */}
+                      {qrId === ex.id && (
+                        <div className="pt-3 border-t border-stone-100">
+                          <p className="text-xs font-medium text-stone-500 mb-2">展覽入口 QR Code</p>
+                          <QRCodeDisplay
+                            url={`${BASE_URL}/exhibition/${ex.code}`}
+                            label={`exhibition-${ex.code}`}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </>
       )}
     </div>
   );

@@ -49,16 +49,16 @@ function LangTabs({ value, onChange, pendingLangs = [] }: {
   pendingLangs?: string[];
 }) {
   return (
-    <div className="flex gap-1 mb-4 bg-zinc-100 rounded-lg p-1 w-fit">
+    <div className="flex gap-1 mb-4 bg-stone-100 rounded-lg p-1 w-fit">
       {(['zh-TW', 'en'] as const).map(l => (
         <button key={l} onClick={() => onChange(l)}
           className={`relative px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            value === l ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
+            value === l ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
           }`}
         >
           {LANG_LABEL[l]}
           {pendingLangs.includes(l) && (
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full border-2 border-zinc-100" />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-400 rounded-full border-2 border-stone-100" />
           )}
         </button>
       ))}
@@ -339,15 +339,15 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   return (
     <div className={isDirty ? 'pb-20' : ''}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-zinc-500 mb-4">
-        <Link href="/admin/artworks" className="hover:text-zinc-800">作品管理</Link>
+      <div className="flex items-center gap-2 text-sm text-stone-500 mb-4">
+        <Link href="/admin/artworks" className="hover:text-stone-800">作品管理</Link>
         <span>/</span>
-        <span className="text-zinc-900 font-medium">{tForms['zh-TW']?.title || artwork.code}</span>
+        <span className="text-stone-900 font-medium">{tForms['zh-TW']?.title || artwork.code}</span>
       </div>
 
       {/* Page header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-zinc-900">編輯作品</h1>
+        <h1 className="text-xl font-bold text-stone-900">編輯作品</h1>
         <div className="flex gap-2">
           <button
             onClick={() => { setShowImport(v => !v); setImportDone(false); setImportError(''); }}
@@ -363,16 +363,16 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
 
       {/* QR Code */}
       {showQR && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-4">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-4">作品 QR Code</h2>
+        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6 mb-4">
+          <h2 className="text-sm font-semibold text-stone-700 mb-4">作品 QR Code</h2>
           <QRCodeDisplay url={`${BASE_URL}/artwork/${artwork.code}`} label={`artwork-${artwork.code}`} />
         </div>
       )}
 
       {/* Import from URL */}
       {showImport && (
-        <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 mb-4">
-          <p className="text-sm text-zinc-600 mb-3">貼上作品頁網址，自動填入標題、藝術家、介紹、封面圖。</p>
+        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 mb-4">
+          <p className="text-sm text-stone-600 mb-3">貼上作品頁網址，自動填入標題、藝術家、介紹、封面圖。</p>
           <div className="flex gap-2">
             <input
               className="form-input flex-1"
@@ -396,8 +396,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         <div className="lg:col-span-3 space-y-5">
 
           {/* Metadata */}
-          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
-            <h2 className="text-base font-semibold text-zinc-900 mb-4">基本資料</h2>
+          <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-stone-900 mb-4">基本資料</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="form-label">作品代碼</label>
@@ -431,8 +431,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           </section>
 
           {/* Translations */}
-          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
-            <h2 className="text-base font-semibold text-zinc-900 mb-4">多語言內容</h2>
+          <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-stone-900 mb-4">多語言內容</h2>
 
             <LangTabs value={translationLang} onChange={setTranslationLang} pendingLangs={pendingTranslationLangs} />
 
@@ -454,7 +454,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                     </div>
                   )}
                   {!tr && lang !== 'zh-TW' && (
-                    <p className="text-xs text-zinc-400 mb-3">翻譯草稿尚未生成（儲存中文內容後會自動產生）</p>
+                    <p className="text-xs text-stone-400 mb-3">翻譯草稿尚未生成（儲存中文內容後會自動產生）</p>
                   )}
                   <div className="space-y-3">
                     <div>
@@ -482,7 +482,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                             {isSaving ? '更新中…' : '標記為已校對'}
                           </button>
                         : <button onClick={() => handleReviewedToggle(lang, false)} disabled={isSaving}
-                            className="text-xs text-zinc-500 hover:text-zinc-700 border border-zinc-200 rounded-lg px-3 py-1.5 transition-colors">
+                            className="text-xs text-stone-500 hover:text-stone-700 border border-stone-200 rounded-lg px-3 py-1.5 transition-colors">
                             {isSaving ? '更新中…' : '取消校對'}
                           </button>
                       }
@@ -499,8 +499,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         <div className="lg:col-span-2 space-y-5">
 
           {/* Audio — zh-TW only */}
-          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
-            <h2 className="text-base font-semibold text-zinc-900 mb-4">音檔（中文）</h2>
+          <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
+            <h2 className="text-base font-semibold text-stone-900 mb-4">音檔（中文）</h2>
 
             {audioUrl ? (
               <div className="mb-4">
@@ -510,7 +510,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-zinc-400 mb-4">尚未上傳音檔</p>
+              <p className="text-xs text-stone-400 mb-4">尚未上傳音檔</p>
             )}
 
             <div className="flex flex-wrap gap-2 items-center mb-4">
@@ -521,7 +521,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
               </label>
               {audioFile && (
                 <>
-                  <span className="text-xs text-zinc-500 truncate max-w-[120px]">{audioFile.name}</span>
+                  <span className="text-xs text-stone-500 truncate max-w-[120px]">{audioFile.name}</span>
                   <button onClick={handleAudioUpload} disabled={audioUploading} className="btn-primary text-sm">
                     {audioUploading ? '上傳中…' : '上傳'}
                   </button>
@@ -529,11 +529,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
               )}
             </div>
 
-            <div className="border-t border-zinc-100 pt-4">
-              <p className="text-xs text-zinc-400 mb-2">或從逐字稿產生音檔</p>
+            <div className="border-t border-stone-100 pt-4">
+              <p className="text-xs text-stone-400 mb-2">或從逐字稿產生音檔</p>
               <div className="flex flex-wrap gap-2 items-center">
                 <select value={ttsVoiceZh} onChange={e => setTtsVoiceZh(e.target.value)}
-                  className="text-xs border border-zinc-200 rounded-lg px-2 py-1.5 text-zinc-700 bg-white flex-1 min-w-0">
+                  className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2] flex-1 min-w-0">
                   <option value="zh-TW-HsiaoChenNeural">曉臻（女）</option>
                   <option value="zh-TW-HsiaoYuNeural">曉雨（女）</option>
                   <option value="zh-TW-YunJheNeural">雲哲（男）</option>
@@ -553,15 +553,15 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           </section>
 
           {/* Segments */}
-          <section className="bg-white border border-zinc-200 rounded-2xl p-5">
+          <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-semibold text-zinc-900">逐字稿</h2>
+              <h2 className="text-base font-semibold text-stone-900">逐字稿</h2>
               {pendingSegLangs.length > 0 && (
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">英文待校對</span>
               )}
             </div>
-            <p className="text-xs text-zinc-400 mb-3">
-              每行：<code className="bg-zinc-100 px-1 rounded">開始秒,結束秒,中文文字</code>　儲存後自動翻譯英文。
+            <p className="text-xs text-stone-400 mb-3">
+              每行：<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,中文文字</code>　儲存後自動翻譯英文。
             </p>
             <textarea
               className="form-input font-mono text-sm"
@@ -578,9 +578,9 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
 
       {/* ── Sticky save bar ── */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${isDirty ? 'translate-y-0' : 'translate-y-full'}`}>
-        <div className="bg-white/95 backdrop-blur border-t border-zinc-200 shadow-lg">
+        <div className="bg-[#faf7f2]/95 backdrop-blur border-t border-stone-200 shadow-lg">
           <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-            <span className="text-sm text-zinc-500">
+            <span className="text-sm text-stone-500">
               {saving ? '儲存中…' : saveError ? '' : '有未儲存的變更'}
             </span>
             {saveError && <p className="text-red-500 text-sm flex-1">{saveError}</p>}

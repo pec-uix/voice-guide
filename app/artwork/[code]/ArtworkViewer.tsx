@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Artwork, ArtworkTranslation, LanguageCode } from '@/lib/types';
 import { t } from '@/lib/i18n';
+import { setFeedbackTrigger } from '@/app/exhibition/[code]/ExhibitionClient';
 
 interface SegmentWithTexts {
   id: string;
@@ -18,6 +19,8 @@ interface Props {
   translations: ArtworkTranslation[];
   segments: SegmentWithTexts[];
   initialLang: LanguageCode;
+  exhibitionId?: string;
+  isLastInExhibition?: boolean;
 }
 
 const LANGS = [
@@ -31,7 +34,7 @@ function formatTime(sec: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function ArtworkViewer({ artwork, translations, segments, initialLang }: Props) {
+export default function ArtworkViewer({ artwork, translations, segments, initialLang, exhibitionId, isLastInExhibition }: Props) {
   const router = useRouter();
   const [lang, setLang] = useState<LanguageCode>(initialLang);
 
@@ -109,7 +112,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f7f4ef]">
 
       {/* Cover image — full bleed, no padding */}
       {artwork.cover_image_url ? (
@@ -121,8 +124,8 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           />
         </div>
       ) : (
-        <div className="w-full bg-zinc-100 flex items-center justify-center" style={{ aspectRatio: '4/3' }}>
-          <span className="text-zinc-300 text-5xl">♪</span>
+        <div className="w-full bg-stone-100 flex items-center justify-center" style={{ aspectRatio: '4/3' }}>
+          <span className="text-stone-300 text-5xl">♪</span>
         </div>
       )}
 
@@ -136,8 +139,8 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
               onClick={() => handleLangChange(l.code)}
               className={`text-xs tracking-wider transition-colors pb-0.5 ${
                 lang === l.code
-                  ? 'text-zinc-900 border-b border-zinc-900'
-                  : 'text-zinc-400 hover:text-zinc-600'
+                  ? 'text-stone-900 border-b border-stone-800'
+                  : 'text-stone-400 hover:text-stone-600'
               }`}
             >
               {l.label}
@@ -147,28 +150,28 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
 
         {/* Artist / Year */}
         {(artwork.artist || artwork.year) && (
-          <p className="text-xs text-zinc-400 tracking-widest uppercase mb-3">
+          <p className="text-xs text-stone-400 tracking-widest uppercase mb-3">
             {[artwork.artist, artwork.year].filter(Boolean).join('  ·  ')}
           </p>
         )}
 
         {/* Title */}
-        <h1 className="text-3xl font-bold text-zinc-900 leading-tight mb-8">
+        <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight mb-8">
           {translation?.title ?? artwork.code}
         </h1>
 
         {/* Description */}
         {translation?.description && (
-          <p className="text-zinc-600 leading-loose text-base whitespace-pre-wrap mb-10">
+          <p className="text-stone-600 leading-loose text-base whitespace-pre-wrap mb-10">
             {translation.description}
           </p>
         )}
 
-        <div className="border-t border-zinc-100 mb-8" />
+        <div className="border-t border-stone-200 mb-8" />
 
         {/* Audio player */}
         <div className="mb-10">
-          <p className="text-xs text-zinc-400 tracking-widest uppercase mb-5">
+          <p className="text-xs text-stone-400 tracking-widest uppercase mb-5">
             {t('audioGuide', lang)}
           </p>
 
@@ -181,7 +184,11 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                 onDurationChange={() => setDuration(audioRef.current?.duration ?? 0)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                onEnded={() => { setIsPlaying(false); recordEvent('complete'); }}
+                onEnded={() => {
+                  setIsPlaying(false);
+                  recordEvent('complete');
+                  if (isLastInExhibition && exhibitionId) setFeedbackTrigger(exhibitionId);
+                }}
                 onError={() => setAudioError(t('audioError', lang))}
                 preload="metadata"
               />
@@ -193,7 +200,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                   <button
                     onClick={handlePlayPause}
                     aria-label={isPlaying ? t('pause', lang) : t('play', lang)}
-                    className="w-14 h-14 flex-shrink-0 flex items-center justify-center border border-zinc-900 rounded-full text-zinc-900 hover:bg-zinc-900 hover:text-white active:scale-95 transition-all"
+                    className="w-14 h-14 flex-shrink-0 flex items-center justify-center border border-stone-800 rounded-full text-stone-800 hover:bg-stone-800 hover:text-white active:scale-95 transition-all"
                   >
                     {isPlaying ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -218,11 +225,11 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                       value={currentTime}
                       onChange={handleSeek}
                       style={{
-                        background: `linear-gradient(to right, #18181b ${progressPercent}%, #e4e4e7 ${progressPercent}%)`,
+                        background: `linear-gradient(to right, #3d2b1f ${progressPercent}%, #e5ddd3 ${progressPercent}%)`,
                       }}
                       aria-label={t('audioGuide', lang)}
                     />
-                    <div className="flex justify-between text-xs text-zinc-400 mt-1.5">
+                    <div className="flex justify-between text-xs text-stone-400 mt-1.5">
                       <span>{formatTime(currentTime)}</span>
                       <span>{formatTime(duration)}</span>
                     </div>
@@ -231,14 +238,14 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
               )}
             </>
           ) : (
-            <p className="text-zinc-400 text-sm">{t('noAudio', lang)}</p>
+            <p className="text-stone-400 text-sm">{t('noAudio', lang)}</p>
           )}
         </div>
 
         {/* Transcript */}
         {segments.length > 0 && (
           <section className="mb-12" aria-label={t('transcript', lang)}>
-            <h2 className="text-xs text-zinc-400 tracking-widest uppercase mb-6">
+            <h2 className="text-xs text-stone-400 tracking-widest uppercase mb-6">
               {t('transcript', lang)}
             </h2>
             <div className="space-y-5">
@@ -259,12 +266,12 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                       }
                     }}
                     className={`w-full text-left bg-transparent border-none p-0 text-base leading-loose cursor-pointer transition-all flex items-start gap-3 ${
-                      isActive ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+                      isActive ? 'text-stone-900' : 'text-stone-400 hover:text-stone-600'
                     }`}
                     aria-label={`跳至 ${formatTime(seg.start_time)}：${text}`}
                   >
                     <span className={`mt-2.5 w-1.5 h-1.5 rounded-full flex-shrink-0 transition-all ${
-                      isActive ? 'bg-zinc-900' : 'bg-zinc-200'
+                      isActive ? 'bg-stone-800' : 'bg-stone-200'
                     }`} />
                     <span className={isActive ? 'font-medium' : ''}>{text}</span>
                   </button>
@@ -281,7 +288,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => recordEvent('click_purchase')}
-            className="block w-full text-center border border-zinc-900 text-zinc-900 py-4 text-sm font-medium tracking-wider hover:bg-zinc-900 hover:text-white transition-colors"
+            className="block w-full text-center border border-stone-800 text-stone-800 py-4 text-sm font-medium tracking-wider hover:bg-stone-800 hover:text-white transition-colors"
           >
             {t('buy', lang)} ↗
           </a>

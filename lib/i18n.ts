@@ -10,7 +10,13 @@ export const UI = {
   review:        { 'zh-TW': '留下評價 ↗', en: 'Leave a Review ↗' },
   pause:         { 'zh-TW': '暫停', en: 'Pause' },
   play:          { 'zh-TW': '播放', en: 'Play' },
-  works:         { 'zh-TW': '展覽作品', en: 'Works' },
+  works:            { 'zh-TW': '展覽作品', en: 'Works' },
+  feedbackTitle:    { 'zh-TW': '參觀心得', en: 'Your Experience' },
+  feedbackPrompt:   { 'zh-TW': '這次展覽體驗如何？', en: 'How was your visit?' },
+  feedbackComment:  { 'zh-TW': '留下文字回饋（選填）', en: 'Leave a comment (optional)' },
+  feedbackSubmit:   { 'zh-TW': '送出', en: 'Submit' },
+  feedbackSkip:     { 'zh-TW': '略過', en: 'Skip' },
+  feedbackThanks:   { 'zh-TW': '謝謝你的回饋！', en: 'Thank you for your feedback!' },
 } as const;
 
 export function t(key: keyof typeof UI, lang: LanguageCode): string {

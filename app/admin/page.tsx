@@ -6,10 +6,10 @@ export default async function AdminLoginPage() {
   if (session) redirect('/admin/exhibitions');
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-zinc-100 p-8">
-        <h1 className="text-xl font-bold text-zinc-900 mb-1">語音導覽後台</h1>
-        <p className="text-sm text-zinc-500 mb-8">請用 Google 帳號登入</p>
+    <div className="min-h-screen bg-[#f2ede7] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm bg-[#faf7f2] rounded-2xl shadow-sm border border-stone-200 p-8">
+        <h1 className="font-serif text-xl font-bold text-stone-900 mb-1">語音導覽後台</h1>
+        <p className="text-sm text-stone-500 mb-8">請用 Google 帳號登入</p>
 
         <form
           action={async () => {
@@ -19,7 +19,7 @@ export default async function AdminLoginPage() {
         >
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-3 bg-white border border-zinc-200 text-zinc-800 font-medium py-3 px-4 rounded-xl hover:bg-zinc-50 active:bg-zinc-100 transition-colors shadow-sm"
+            className="w-full flex items-center justify-center gap-3 bg-[#faf7f2] border border-stone-200 text-stone-800 font-medium py-3 px-4 rounded-xl hover:bg-stone-100 active:bg-stone-200 transition-colors shadow-sm"
           >
             <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -31,7 +31,7 @@ export default async function AdminLoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-xs text-zinc-400 text-center leading-relaxed">
+        <p className="mt-6 text-xs text-stone-400 text-center leading-relaxed">
           僅限授權的管理員帳號登入。<br />
           第一次登入會看到「未驗證應用程式」的 Google 警告，<br />
           點「進階」→「前往」即可繼續。

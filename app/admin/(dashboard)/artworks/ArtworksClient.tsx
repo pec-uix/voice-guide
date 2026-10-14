@@ -86,7 +86,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-zinc-900">作品管理</h1>
+        <h1 className="text-xl font-bold text-stone-900">作品管理</h1>
         <button onClick={openCreate} className="btn-primary">＋ 新增作品</button>
       </div>
 
@@ -103,8 +103,8 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
 
       {/* Create form */}
       {showForm && (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-6 mb-6">
-          <h2 className="text-base font-semibold text-zinc-900 mb-4">新增作品</h2>
+        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6 mb-6">
+          <h2 className="text-base font-semibold text-stone-900 mb-4">新增作品</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="form-label">作品代碼 *</label>
@@ -145,7 +145,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
                 onChange={e => setForm(f => ({ ...f, purchase_url: e.target.value }))} />
             </div>
           </div>
-          <p className="text-xs text-zinc-400 mt-2">
+          <p className="text-xs text-stone-400 mt-2">
             儲存後，系統會自動把中文內容翻譯成英文草稿（需要校對）
           </p>
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
@@ -160,34 +160,34 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
 
       {/* Artwork list */}
       {artworks.length === 0 ? (
-        <p className="text-zinc-400 text-sm py-12 text-center">尚無作品</p>
+        <p className="text-stone-400 text-sm py-12 text-center">尚無作品</p>
       ) : (
-        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden">
+        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-100">
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">代碼</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">作品名稱</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">藝術家</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500">翻譯狀態</th>
+              <tr className="border-b border-stone-100">
+                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">代碼</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">作品名稱</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">藝術家</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">翻譯狀態</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-50">
+            <tbody className="divide-y divide-stone-50">
               {artworks.map(aw => (
-                <tr key={aw.id} className="hover:bg-zinc-50 transition-colors">
+                <tr key={aw.id} className="hover:bg-stone-50 transition-colors">
                   <td className="px-4 py-3">
-                    <span className="font-mono text-xs bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded">{aw.code}</span>
+                    <span className="font-mono text-xs bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">{aw.code}</span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-zinc-900">{aw.title ?? '（無標題）'}</td>
-                  <td className="px-4 py-3 text-zinc-500">{aw.artist ?? '—'}</td>
+                  <td className="px-4 py-3 font-medium text-stone-900">{aw.title ?? '（無標題）'}</td>
+                  <td className="px-4 py-3 text-stone-500">{aw.artist ?? '—'}</td>
                   <td className="px-4 py-3">
                     {aw.pending_count > 0 ? (
                       <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
                         待校對 {aw.pending_count}
                       </span>
                     ) : (
-                      <span className="text-xs text-zinc-400">已完成</span>
+                      <span className="text-xs text-stone-400">已完成</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

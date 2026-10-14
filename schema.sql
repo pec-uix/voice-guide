@@ -23,6 +23,7 @@ create table exhibitions (
   description text,
   review_url text,                        -- 評價連結（如 Google 評價），整個展覽共用一個，
                                            -- 只在展覽總覽頁顯示，不放在個別作品頁
+  cover_image_url text,                   -- 展覽封面／banner 圖（上傳至 Cloudinary）
   created_at timestamptz not null default now()
 );
 
@@ -94,6 +95,17 @@ create table events (
   created_at timestamptz not null default now(),
   constraint events_has_target check (artwork_id is not null or exhibition_id is not null)
 );
+
+-- 參觀者對展覽的評價回饋
+create table exhibition_feedback (
+  id uuid primary key default gen_random_uuid(),
+  exhibition_id uuid not null references exhibitions(id) on delete cascade,
+  rating smallint not null check (rating between 1 and 5),
+  comment text,
+  language_code text not null default 'zh-TW',
+  created_at timestamptz not null default now()
+);
+create index idx_exhibition_feedback_exid on exhibition_feedback(exhibition_id);
 
 create index idx_artwork_translations_artwork_id on artwork_translations(artwork_id);
 create index idx_transcript_segments_artwork_id on transcript_segments(artwork_id);

@@ -41,6 +41,20 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
   if (!rows[0]) notFound();
   const artwork = rows[0] as unknown as Artwork;
 
+  // Determine if this is the last artwork in its exhibition (by created_at order)
+  let exhibitionId: string | null = null;
+  let isLastInExhibition = false;
+  if (artwork.exhibition_id) {
+    exhibitionId = artwork.exhibition_id;
+    const [lastRow] = await sql`
+      SELECT id FROM artworks
+      WHERE exhibition_id = ${artwork.exhibition_id}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    isLastInExhibition = lastRow?.id === artwork.id;
+  }
+
   const translations = (await sql`
     SELECT * FROM artwork_translations WHERE artwork_id = ${artwork.id}
   `) as unknown as ArtworkTranslation[];
@@ -70,6 +84,8 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
       translations={translations}
       segments={segments}
       initialLang={safeLang}
+      exhibitionId={exhibitionId ?? undefined}
+      isLastInExhibition={isLastInExhibition}
     />
   );
 }

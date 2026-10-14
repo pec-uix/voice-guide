@@ -20,15 +20,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { code, name, description, review_url } = body;
+    const { code, name, description, review_url, cover_image_url } = body;
 
     if (!code?.trim() || !name?.trim()) {
       return NextResponse.json({ error: 'code and name are required' }, { status: 400 });
     }
 
     const [row] = await sql`
-      INSERT INTO exhibitions (code, name, description, review_url)
-      VALUES (${code.trim()}, ${name.trim()}, ${description ?? null}, ${review_url ?? null})
+      INSERT INTO exhibitions (code, name, description, review_url, cover_image_url)
+      VALUES (${code.trim()}, ${name.trim()}, ${description ?? null}, ${review_url ?? null}, ${cover_image_url ?? null})
       RETURNING *
     `;
     return NextResponse.json({ data: row }, { status: 201 });

@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f4ef;
+  --foreground: #1c1510;
+  --surface: #faf7f2;
+  --border-warm: #e5ddd3;
 }
 
 @theme inline {
@@ -10,13 +12,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -36,7 +31,7 @@ input[type='range'].audio-progress {
   width: 100%;
   height: 4px;
   border-radius: 2px;
-  background: #e4e4e7;
+  background: #e5ddd3;
   outline: none;
   cursor: pointer;
 }
@@ -46,35 +41,35 @@ input[type='range'].audio-progress::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #18181b;
+  background: #3d2b1f;
   cursor: pointer;
-  border: 2px solid white;
+  border: 2px solid #f7f4ef;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 input[type='range'].audio-progress::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #18181b;
+  background: #3d2b1f;
   cursor: pointer;
-  border: 2px solid white;
+  border: 2px solid #f7f4ef;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 /* Admin shared utilities */
 .btn-primary {
-  @apply bg-zinc-900 text-white text-sm font-medium px-4 py-2 rounded-xl
-         hover:bg-zinc-700 active:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply bg-stone-900 text-white text-sm font-medium px-4 py-2 rounded-xl
+         hover:bg-stone-700 active:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
 }
 .btn-ghost {
-  @apply text-sm text-zinc-600 border border-zinc-200 px-3 py-2 rounded-xl
-         hover:border-zinc-400 hover:text-zinc-900 transition-colors;
+  @apply text-sm text-stone-600 border border-stone-200 px-3 py-2 rounded-xl
+         hover:border-stone-400 hover:text-stone-900 transition-colors;
 }
 .form-label {
-  @apply block text-xs font-medium text-zinc-500 mb-1;
+  @apply block text-xs font-medium text-stone-500 mb-1;
 }
 .form-input {
-  @apply w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm text-zinc-900
-         focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400
-         placeholder:text-zinc-300;
+  @apply w-full border border-stone-200 rounded-xl px-3 py-2 text-sm text-stone-900
+         focus:outline-none focus:border-stone-400 focus:ring-1 focus:ring-stone-400
+         placeholder:text-stone-300 bg-[#faf7f2];
 }

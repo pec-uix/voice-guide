@@ -8,6 +8,37 @@ function configure() {
   });
 }
 
+export async function uploadImage(
+  buffer: Buffer,
+  filename: string,
+): Promise<{ url: string } | { error: string }> {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    return { error: 'Cloudinary credentials not configured' };
+  }
+
+  configure();
+
+  const publicId = filename.replace(/\.[^/.]+$/, '');
+
+  try {
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'image', public_id: publicId },
+        (error, result) => {
+          if (error || !result) reject(error ?? new Error('No result'));
+          else resolve(result);
+        },
+      );
+      stream.end(buffer);
+    });
+
+    return { url: result.secure_url };
+  } catch (err) {
+    console.error('Cloudinary upload error:', err);
+    return { error: 'Upload failed' };
+  }
+}
+
 export async function uploadAudio(
   buffer: Buffer,
   filename: string,
