@@ -458,6 +458,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                           <QRCodeDisplay
                             url={`${BASE_URL}/exhibition/${ex.code}`}
                             label={`exhibition-${ex.code}`}
+                            title={ex.name}
                           />
                         </div>
                       )}

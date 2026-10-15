@@ -422,7 +422,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       {showQR && (
         <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6 mb-4">
           <h2 className="text-sm font-semibold text-stone-700 mb-4">作品 QR Code</h2>
-          <QRCodeDisplay url={`${BASE_URL}/artwork/${artwork.code}`} label={`artwork-${artwork.code}`} />
+          <QRCodeDisplay url={`${BASE_URL}/artwork/${artwork.code}`} label={`artwork-${artwork.code}`} title={tForms['zh-TW']?.title || artwork.code} />
         </div>
       )}
 
