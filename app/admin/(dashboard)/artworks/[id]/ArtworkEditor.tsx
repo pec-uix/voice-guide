@@ -211,6 +211,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   );
   const [transcribing, setTranscribing] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [ttsUsedFallback, setTtsUsedFallback] = useState(false);
 
   const extractPlainText = (raw: string) =>
     raw.trim().split('\n').filter(l => l.trim()).map(line => {
@@ -234,6 +235,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '音檔產生失敗'); return; }
       setAudioUrls(u => ({ ...u, [lang]: json.data.audio_url }));
+      setTtsUsedFallback(!!json.data.fallback);
     } catch { setAudioError('網路錯誤'); }
     finally { setGeneratingAudio(false); }
   };
@@ -515,15 +517,18 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                 {/* Has transcript, no audio → primary TTS action */}
                 {hasCurrentTranscript && !currentAudioUrl && (
                   <>
-                    <select
-                      value={ttsVoices[lang] ?? ''}
-                      onChange={e => setTtsVoices(v => ({ ...v, [lang]: e.target.value }))}
-                      className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2]"
-                    >
-                      {(TTS_VOICES[lang] ?? []).map(v => (
-                        <option key={v.value} value={v.value}>{v.label}</option>
-                      ))}
-                    </select>
+                    {ttsUsedFallback
+                      ? <span className="text-xs text-amber-600">Edge TTS 限速中，聲音固定</span>
+                      : <select
+                          value={ttsVoices[lang] ?? ''}
+                          onChange={e => setTtsVoices(v => ({ ...v, [lang]: e.target.value }))}
+                          className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2]"
+                        >
+                          {(TTS_VOICES[lang] ?? []).map(v => (
+                            <option key={v.value} value={v.value}>{v.label}</option>
+                          ))}
+                        </select>
+                    }
                     <button onClick={handleGenerateAudio} disabled={generatingAudio} className="btn-primary text-sm whitespace-nowrap">
                       {generatingAudio ? '產生中…' : '🎙 轉為音檔'}
                     </button>
@@ -538,15 +543,18 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                 {/* Has both → secondary regenerate option */}
                 {currentAudioUrl && hasCurrentTranscript && (
                   <>
-                    <select
-                      value={ttsVoices[lang] ?? ''}
-                      onChange={e => setTtsVoices(v => ({ ...v, [lang]: e.target.value }))}
-                      className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2]"
-                    >
-                      {(TTS_VOICES[lang] ?? []).map(v => (
-                        <option key={v.value} value={v.value}>{v.label}</option>
-                      ))}
-                    </select>
+                    {ttsUsedFallback
+                      ? <span className="text-xs text-amber-600">Edge TTS 限速中，聲音固定</span>
+                      : <select
+                          value={ttsVoices[lang] ?? ''}
+                          onChange={e => setTtsVoices(v => ({ ...v, [lang]: e.target.value }))}
+                          className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2]"
+                        >
+                          {(TTS_VOICES[lang] ?? []).map(v => (
+                            <option key={v.value} value={v.value}>{v.label}</option>
+                          ))}
+                        </select>
+                    }
                     <button onClick={handleGenerateAudio} disabled={generatingAudio} className="btn-ghost text-sm whitespace-nowrap">
                       {generatingAudio ? '產生中…' : '🔄 重新產生音檔'}
                     </button>
@@ -558,7 +566,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             {/* Audio area */}
             {currentAudioUrl ? (
               <div className="mb-5">
-                <audio controls src={currentAudioUrl} className="w-full mb-1.5" />
+                <audio key={currentAudioUrl} controls src={currentAudioUrl} className="w-full mb-1.5" />
                 <div className="flex gap-3 items-center">
                   <label className="cursor-pointer text-xs text-stone-500 hover:text-stone-700">
                     重新上傳
@@ -606,8 +614,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                   純文字或時間戳記格式（<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>）
                 </p>
                 <textarea
-                  className="form-input font-mono text-sm"
-                  rows={6}
+                  className="form-input font-mono text-sm leading-6"
+                  rows={Math.max(6, segText.split('\n').length + 1)}
                   value={segText}
                   onChange={e => { setSegText(e.target.value); markDirty(); setSegFormatError(''); }}
                   placeholder={'純文字模式（只產生音檔）：\n點一盞燈，在月光下靜靜的閱讀…\n\n時間戳記模式（同步反白）：\n0,9,這件作品名為…\n9,20,藝術家以…'}
@@ -628,7 +636,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                         ))}
                       </div>
                       <textarea
-                        className="form-input font-mono text-sm flex-1"
+                        className="form-input font-mono text-sm leading-6 flex-1"
                         rows={Math.max(segments.length, 3)}
                         value={enSegText}
                         onChange={e => { setEnSegText(e.target.value); markDirty(); }}
@@ -640,8 +648,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                   <>
                     <p className="text-xs text-stone-400 mb-3">純文字或時間戳記格式（<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>）。</p>
                     <textarea
-                      className="form-input font-mono text-sm"
-                      rows={5}
+                      className="form-input font-mono text-sm leading-6"
+                      rows={Math.max(5, enSegText.split('\n').length + 1)}
                       value={enSegText}
                       onChange={e => { setEnSegText(e.target.value); markDirty(); }}
                       placeholder={"純文字（每行一段）：\nThis artwork titled…\n\n或時間戳記格式：\n0,9,This artwork titled…\n9,20,The artist explores…"}

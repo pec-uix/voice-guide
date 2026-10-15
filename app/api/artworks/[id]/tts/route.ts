@@ -11,18 +11,21 @@ async function gTranslateTTS(text: string, lang: string): Promise<Buffer> {
   const tl = lang === 'en' ? 'en' : 'zh-TW';
   const MAX = 180;
 
-  // Split at sentence boundaries to stay under the 200-char URL limit
-  const sentences = text.split('\n').flatMap(line =>
-    (line.match(/[^。！？.!?]+[。！？.!?]*/g) ?? [line])
-  ).filter(s => s.trim());
+  // Ensure each line ends with punctuation so TTS produces a natural pause between segments
+  const lines = text.split('\n').filter(l => l.trim()).map(line => {
+    line = line.trim();
+    if (!/[。！？.!?,，]$/.test(line)) line += lang === 'en' ? '.' : '。';
+    return line;
+  });
 
+  // Chunk into ≤180-char requests, keeping lines together
   const chunks: string[] = [];
   let cur = '';
-  for (const s of sentences) {
-    if ((cur + s).length > MAX && cur) { chunks.push(cur.trim()); cur = s; }
-    else cur += s;
+  for (const line of lines) {
+    if ((cur + line).length > MAX && cur) { chunks.push(cur); cur = line; }
+    else cur += cur ? ' ' + line : line;
   }
-  if (cur.trim()) chunks.push(cur.trim());
+  if (cur) chunks.push(cur);
 
   const buffers: Buffer[] = [];
   for (const chunk of chunks) {
@@ -65,10 +68,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   try {
     const segments = text.trim().split('\n').filter((s: string) => s.trim());
-    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${xmlLang}"><voice name="${selectedVoice}">${segments.join('<break time="2500ms"/>')}</voice></speak>`;
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${xmlLang}"><voice name="${selectedVoice}">${segments.join('<break time="600ms"/>')}</voice></speak>`;
 
     // Try Edge TTS (neural quality) with up to 3 retries on transient errors
     let buffer: Buffer | null = null;
+    let usedFallback = false;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
       try {
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest, { params }: Params) {
           // Edge TTS exhausted — fall back to Google Translate TTS
           console.warn('Edge TTS unavailable, falling back to Google Translate TTS');
           buffer = await gTranslateTTS(text.trim(), langCode);
+          usedFallback = true;
         }
       }
     }
@@ -110,7 +115,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       RETURNING *
     `;
 
-    return NextResponse.json({ data: { audio_url: result.url, translation } });
+    return NextResponse.json({ data: { audio_url: result.url, translation, fallback: usedFallback } });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('TTS error:', err);
