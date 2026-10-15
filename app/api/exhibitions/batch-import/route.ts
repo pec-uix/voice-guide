@@ -12,6 +12,7 @@ interface ArtworkInput {
   description?: string;
   imageUrl?: string;
   purchaseUrl?: string;
+  purchaseUrlEn?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -69,11 +70,15 @@ export async function POST(req: NextRequest) {
         `;
 
         if (enTitle) {
+          // Use explicit EN URL if provided, otherwise derive from ZH uniart URL
+          const enPurchaseUrl = aw.purchaseUrlEn
+            ?? aw.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/')
+            ?? null;
           await sql`
             INSERT INTO artwork_translations
               (artwork_id, language_code, title, description, purchase_url, is_reviewed)
             VALUES
-              (${artwork.id}, 'en', ${enTitle}, ${enDescription ?? null}, ${aw.purchaseUrl ?? null}, ${titleFromSite})
+              (${artwork.id}, 'en', ${enTitle}, ${enDescription ?? null}, ${enPurchaseUrl}, ${titleFromSite})
           `;
         }
 
