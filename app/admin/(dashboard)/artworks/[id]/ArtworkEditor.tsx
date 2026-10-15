@@ -185,6 +185,9 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
 
   // Segments
   const [segText, setSegText] = useState(segmentsToText(segments));
+  const [enSegText, setEnSegText] = useState(
+    segments.map(s => s.texts.find(t => t.language_code === 'en')?.text ?? '').join('\n')
+  );
   const [transcribing, setTranscribing] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [ttsVoiceZh, setTtsVoiceZh] = useState('zh-TW-HsiaoChenNeural');
@@ -331,6 +334,20 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           }
         }
         // else: pure plain text — used for audio generation only, not saved as segments
+      }
+
+      // Save English segment translations if segments exist and EN text has been edited
+      if (segments.length > 0 && enSegText.trim()) {
+        const enLines = enSegText.split('\n');
+        const eRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language_code: 'en', texts: enLines }),
+        });
+        if (!eRes.ok) {
+          const j = await eRes.json();
+          errors.push(j.error ?? '英文逐字稿儲存失敗');
+        }
       }
 
       if (errors.length > 0) {
@@ -593,27 +610,29 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             />
             {segFormatError && <p className="text-red-500 text-sm mt-2">{segFormatError}</p>}
 
-            {/* English segments (auto-generated) */}
+            {/* English segments — editable, one line per segment */}
             {segments.length > 0 && (
               <div className="mt-4 pt-4 border-t border-stone-100">
-                <p className="text-xs font-medium text-stone-600 mb-2">英文逐字稿（自動生成）</p>
-                <div className="space-y-2">
-                  {segments.map(seg => {
-                    const enText = seg.texts.find(t => t.language_code === 'en');
-                    return (
-                      <div key={seg.id} className="text-xs flex gap-2 items-start">
-                        <span className="text-stone-300 font-mono whitespace-nowrap pt-0.5">
-                          {seg.start_time}–{seg.end_time}s
-                        </span>
-                        <span className={`flex-1 ${enText?.is_reviewed ? 'text-stone-700' : 'text-stone-500'}`}>
-                          {enText?.text ?? <span className="text-stone-300 italic">（翻譯未生成）</span>}
-                        </span>
-                        {enText && !enText.is_reviewed && (
-                          <span className="text-amber-500 whitespace-nowrap">待校對</span>
-                        )}
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-stone-600">英文逐字稿</p>
+                  <span className="text-xs text-stone-400">每行對應一個中文分段，順序相同</span>
+                </div>
+                <div className="flex gap-2">
+                  {/* timestamps guide column */}
+                  <div className="flex flex-col gap-0 pt-1.5 shrink-0">
+                    {segments.map(seg => (
+                      <span key={seg.id} className="text-stone-300 font-mono text-xs leading-[1.625rem]">
+                        {seg.start_time}–{seg.end_time}s
+                      </span>
+                    ))}
+                  </div>
+                  <textarea
+                    className="form-input font-mono text-sm flex-1"
+                    rows={segments.length}
+                    value={enSegText}
+                    onChange={e => { setEnSegText(e.target.value); markDirty(); }}
+                    placeholder={segments.map((_, i) => `English text for segment ${i + 1}`).join('\n')}
+                  />
                 </div>
               </div>
             )}

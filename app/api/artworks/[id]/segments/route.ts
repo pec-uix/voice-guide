@@ -114,3 +114,28 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Failed to save segments' }, { status: 500 });
   }
 }
+
+// PATCH: update translated texts for a specific language (line N → segment_index N)
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { id } = await params;
+  const { language_code, texts } = await req.json() as { language_code: string; texts: string[] };
+  if (!Array.isArray(texts)) return NextResponse.json({ error: 'texts array required' }, { status: 400 });
+
+  const segs = await sql`
+    SELECT id FROM transcript_segments WHERE artwork_id = ${id} ORDER BY segment_index
+  `;
+
+  for (let i = 0; i < segs.length; i++) {
+    const text = (texts[i] ?? '').trim();
+    await sql`
+      UPDATE transcript_segment_texts
+      SET text = ${text}, is_reviewed = true
+      WHERE segment_id = ${segs[i].id} AND language_code = ${language_code}
+    `;
+  }
+
+  return NextResponse.json({ data: { updated: segs.length } });
+}
