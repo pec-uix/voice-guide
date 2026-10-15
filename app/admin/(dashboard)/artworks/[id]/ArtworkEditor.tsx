@@ -282,12 +282,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         if (j.translation_warning) hasTranslationWarning = true;
       }
 
-      // Save translations (skip languages with no content and no existing DB row)
+      // Save translations (skip if form is blank — never overwrite existing content with empty values)
       for (const lang of ['zh-TW', 'en'] as const) {
         const form = tForms[lang];
-        const existsInDb = translations.some(t => t.language_code === lang);
         const hasContent = form.title.trim() || form.description.trim() || form.purchase_url.trim();
-        if (!existsInDb && !hasContent) continue;
+        if (!hasContent) continue;
 
         const tRes = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
           method: 'PUT',
