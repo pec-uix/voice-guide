@@ -6,6 +6,39 @@ import { NextRequest, NextResponse } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
 
+// Google Translate TTS fallback — free, no key, simpler voice quality
+async function gTranslateTTS(text: string, lang: string): Promise<Buffer> {
+  const tl = lang === 'en' ? 'en' : 'zh-TW';
+  const MAX = 180;
+
+  // Split at sentence boundaries to stay under the 200-char URL limit
+  const sentences = text.split('\n').flatMap(line =>
+    (line.match(/[^。！？.!?]+[。！？.!?]*/g) ?? [line])
+  ).filter(s => s.trim());
+
+  const chunks: string[] = [];
+  let cur = '';
+  for (const s of sentences) {
+    if ((cur + s).length > MAX && cur) { chunks.push(cur.trim()); cur = s; }
+    else cur += s;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+
+  const buffers: Buffer[] = [];
+  for (const chunk of chunks) {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${tl}&client=gtx`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://translate.google.com/',
+      },
+    });
+    if (!res.ok) throw new Error(`Google TTS: ${res.status}`);
+    buffers.push(Buffer.from(await res.arrayBuffer()));
+  }
+  return Buffer.concat(buffers);
+}
+
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -34,18 +67,34 @@ export async function POST(req: NextRequest, { params }: Params) {
     const segments = text.trim().split('\n').filter((s: string) => s.trim());
     const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${xmlLang}"><voice name="${selectedVoice}">${segments.join('<break time="2500ms"/>')}</voice></speak>`;
 
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-
-    const { audioStream } = tts.toStream(ssml);
-
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-      audioStream.on('end', resolve);
-      audioStream.on('error', reject);
-    });
-    const buffer = Buffer.concat(chunks);
+    // Try Edge TTS (neural quality) with up to 3 retries on transient errors
+    let buffer: Buffer | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1500 * attempt));
+      try {
+        const tts = new MsEdgeTTS();
+        await tts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+        const { audioStream } = tts.toStream(ssml);
+        const chunks: Buffer[] = [];
+        await new Promise<void>((resolve, reject) => {
+          audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+          audioStream.on('end', resolve);
+          audioStream.on('error', reject);
+        });
+        buffer = Buffer.concat(chunks);
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const isRetryable = msg.includes('429') || msg.includes('truncated') || msg.includes('Stream closed');
+        if (!isRetryable) throw err;
+        if (attempt === 2) {
+          // Edge TTS exhausted — fall back to Google Translate TTS
+          console.warn('Edge TTS unavailable, falling back to Google Translate TTS');
+          buffer = await gTranslateTTS(text.trim(), langCode);
+        }
+      }
+    }
+    if (!buffer) throw new Error('TTS buffer empty');
 
     const filename = `artworks/${id}/audio-${Date.now()}.mp3`;
     const result = await uploadAudio(buffer, filename, 'audio/mpeg');
@@ -63,7 +112,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ data: { audio_url: result.url, translation } });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error('TTS error:', err);
-    return NextResponse.json({ error: '音檔產生失敗，請稍後再試' }, { status: 500 });
+    return NextResponse.json({ error: `音檔產生失敗：${msg}` }, { status: 500 });
   }
 }

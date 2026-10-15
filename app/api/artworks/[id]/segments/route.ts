@@ -116,6 +116,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 }
 
 // PATCH: update translated texts for a specific language (line N → segment_index N)
+// If no segments exist yet, creates them from the provided texts (supports timestamped format).
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -128,14 +129,51 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     SELECT id FROM transcript_segments WHERE artwork_id = ${id} ORDER BY segment_index
   `;
 
-  for (let i = 0; i < segs.length; i++) {
-    const text = (texts[i] ?? '').trim();
-    await sql`
-      UPDATE transcript_segment_texts
-      SET text = ${text}, is_reviewed = true
-      WHERE segment_id = ${segs[i].id} AND language_code = ${language_code}
-    `;
+  if (segs.length > 0) {
+    // Update existing segment texts
+    for (let i = 0; i < segs.length; i++) {
+      const text = (texts[i] ?? '').trim();
+      await sql`
+        UPDATE transcript_segment_texts
+        SET text = ${text}, is_reviewed = true
+        WHERE segment_id = ${segs[i].id} AND language_code = ${language_code}
+      `;
+    }
+    return NextResponse.json({ data: { updated: segs.length } });
   }
 
-  return NextResponse.json({ data: { updated: segs.length } });
+  // No existing segments — create from provided texts
+  const nonEmpty = texts.filter(t => t.trim());
+  if (nonEmpty.length === 0) return NextResponse.json({ data: { created: 0 } });
+
+  const [artworkRow] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
+  if (!artworkRow) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
+
+  // Detect timestamped format: all lines must be "start,end,text"
+  const allTimestamped = nonEmpty.every(line => {
+    const p = line.split(',');
+    return p.length >= 3 && !isNaN(parseFloat(p[0])) && !isNaN(parseFloat(p[1]));
+  });
+
+  const inputs = allTimestamped
+    ? nonEmpty.map((line, i) => {
+        const p = line.split(',');
+        return { segment_index: i, start_time: parseFloat(p[0]), end_time: parseFloat(p[1]), text: p.slice(2).join(',').trim() };
+      })
+    : nonEmpty.map((text, i) => ({ segment_index: i, start_time: i * 10, end_time: (i + 1) * 10, text: text.trim() }));
+
+  let created = 0;
+  for (const seg of inputs) {
+    const [segment] = await sql`
+      INSERT INTO transcript_segments (artwork_id, segment_index, start_time, end_time)
+      VALUES (${id}, ${seg.segment_index}, ${seg.start_time}, ${seg.end_time})
+      RETURNING *
+    `;
+    await sql`
+      INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
+      VALUES (${segment.id}, ${language_code}, ${seg.text}, true)
+    `;
+    created++;
+  }
+  return NextResponse.json({ data: { created } }, { status: 201 });
 }
