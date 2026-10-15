@@ -589,17 +589,12 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             {audioError && <p className="text-red-500 text-sm mt-3">{audioError}</p>}
           </section>
 
-          {/* Segments */}
+          {/* Chinese segments */}
           <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-semibold text-stone-900">逐字稿（中文）</h2>
-              {pendingSegLangs.length > 0 && (
-                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">英文待校對</span>
-              )}
-            </div>
+            <h2 className="text-base font-semibold text-stone-900 mb-1">逐字稿（中文）</h2>
             <div className="text-xs text-stone-400 mb-3 space-y-1">
               <p>貼上純文字後按「🎙 產生音檔」即可生成中文語音。</p>
-              <p>若需前台播放時同步反白，改為每行加時間戳記：<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>　儲存後自動翻譯英文。</p>
+              <p>若需前台播放時同步反白，每行改為：<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>　儲存後自動翻譯英文。</p>
             </div>
             <textarea
               className="form-input font-mono text-sm"
@@ -609,17 +604,23 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
               placeholder={'純文字模式（只產生音檔）：\n點一盞燈，在月光下靜靜的閱讀…\n\n時間戳記模式（同步反白）：\n0,9,這件作品名為…\n9,20,藝術家以…'}
             />
             {segFormatError && <p className="text-red-500 text-sm mt-2">{segFormatError}</p>}
+          </section>
 
-            {/* English segments — editable, one line per segment */}
-            {segments.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-stone-100">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-stone-600">英文逐字稿</p>
-                  <span className="text-xs text-stone-400">每行對應一個中文分段，順序相同</span>
-                </div>
+          {/* English segments */}
+          <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold text-stone-900">逐字稿（英文）</h2>
+              {pendingSegLangs.length > 0 && (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">待校對</span>
+              )}
+            </div>
+            {segments.length === 0 ? (
+              <p className="text-xs text-stone-400">請先儲存中文逐字稿（含時間戳記），英文版會自動生成後可在此編輯。</p>
+            ) : (
+              <>
+                <p className="text-xs text-stone-400 mb-3">每行對應一個中文分段，順序相同。</p>
                 <div className="flex gap-2">
-                  {/* timestamps guide column */}
-                  <div className="flex flex-col gap-0 pt-1.5 shrink-0">
+                  <div className="flex flex-col shrink-0 pt-1.5">
                     {segments.map(seg => (
                       <span key={seg.id} className="text-stone-300 font-mono text-xs leading-[1.625rem]">
                         {seg.start_time}–{seg.end_time}s
@@ -628,13 +629,13 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                   </div>
                   <textarea
                     className="form-input font-mono text-sm flex-1"
-                    rows={segments.length}
+                    rows={Math.max(segments.length, 3)}
                     value={enSegText}
                     onChange={e => { setEnSegText(e.target.value); markDirty(); }}
                     placeholder={segments.map((_, i) => `English text for segment ${i + 1}`).join('\n')}
                   />
                 </div>
-              </div>
+              </>
             )}
           </section>
 
