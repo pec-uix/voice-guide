@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
             artist: zh.artist,
             cover_image_url: zh.imageUrl || null,
             purchase_url: `https://www.uniart.com.tw/products/${id}`,
+            purchase_url_en: `https://www.uniart.com.tw/en/products/${id}`,
           },
         });
       }
