@@ -68,8 +68,14 @@ export function parseNuxtProductPage(html: string): ParsedProduct | null {
     const root = unflatten(arr, 0) as { data: Record<string, unknown> };
     if (!root?.data) return null;
 
-    const product = Object.values(root.data)[0] as Record<string, unknown>;
-    if (!product) return null;
+    const first = Object.values(root.data)[0] as Record<string, unknown>;
+    if (!first) return null;
+
+    // Chinese pages: productName is directly on the first object
+    // English pages: productName is nested under a "product" sub-key
+    const product = (first.productName !== undefined
+      ? first
+      : (first.product as Record<string, unknown>)) ?? first;
 
     const images = (product.imageUrlArray as string[]) ?? [];
     const imageUrl = images[0]?.replace('/products-thumbnail/', '/products/') ?? '';
@@ -77,7 +83,7 @@ export function parseNuxtProductPage(html: string): ParsedProduct | null {
     return {
       title: ((product.productName as string) ?? '').trim(),
       description: (product.productDescription as string) ?? '',
-      artist: (product.supplierName as string) ?? '',
+      artist: ((product.supplierName as string) ?? '').trim(),
       imageUrl,
     };
   } catch {
