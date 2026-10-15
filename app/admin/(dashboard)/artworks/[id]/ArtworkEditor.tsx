@@ -251,12 +251,23 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   const handleSaveAll = async () => {
     setSaveError(''); setSegFormatError('');
 
-    // Validate segments before calling any API
+    // Pre-validate: only block if MIXED (some lines have timestamps, some don't)
     if (segText.trim()) {
-      const parsed = parseSegmentText(segText);
-      if (!parsed) {
-        setSegFormatError('格式錯誤，每行應為：開始秒數,結束秒數,文字');
+      const lines = segText.trim().split('\n').filter(l => l.trim());
+      const tsCount = lines.filter(line => {
+        const p = line.split(',');
+        return p.length >= 3 && !isNaN(parseFloat(p[0])) && !isNaN(parseFloat(p[1]));
+      }).length;
+      if (tsCount > 0 && tsCount < lines.length) {
+        setSegFormatError('格式不一致：每行都要有時間戳記，或全部都不加。');
         return;
+      }
+      if (tsCount === lines.length) {
+        const parsed = parseSegmentText(segText);
+        if (!parsed) {
+          setSegFormatError('格式錯誤，每行應為：開始秒數,結束秒數,文字');
+          return;
+        }
       }
     }
 
@@ -303,20 +314,23 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         }
       }
 
-      // Save segments (triggers auto-translate)
+      // Save segments (only if timestamps present; pure text is for audio generation only)
       if (segText.trim()) {
-        const parsed = parseSegmentText(segText)!;
-        const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ segments: parsed }),
-        });
-        const sJson = await sRes.json();
-        if (!sRes.ok) {
-          errors.push(sJson.error ?? '逐字稿儲存失敗');
-        } else if (sJson.translation_warning) {
-          hasTranslationWarning = true;
+        const parsed = parseSegmentText(segText);
+        if (parsed) {
+          const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ segments: parsed }),
+          });
+          const sJson = await sRes.json();
+          if (!sRes.ok) {
+            errors.push(sJson.error ?? '逐字稿儲存失敗');
+          } else if (sJson.translation_warning) {
+            hasTranslationWarning = true;
+          }
         }
+        // else: pure plain text — used for audio generation only, not saved as segments
       }
 
       if (errors.length > 0) {
@@ -561,22 +575,48 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           {/* Segments */}
           <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-semibold text-stone-900">逐字稿</h2>
+              <h2 className="text-base font-semibold text-stone-900">逐字稿（中文）</h2>
               {pendingSegLangs.length > 0 && (
                 <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">英文待校對</span>
               )}
             </div>
-            <p className="text-xs text-stone-400 mb-3">
-              每行：<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,中文文字</code>　儲存後自動翻譯英文。
-            </p>
+            <div className="text-xs text-stone-400 mb-3 space-y-1">
+              <p>貼上純文字後按「🎙 產生音檔」即可生成中文語音。</p>
+              <p>若需前台播放時同步反白，改為每行加時間戳記：<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>　儲存後自動翻譯英文。</p>
+            </div>
             <textarea
               className="form-input font-mono text-sm"
               rows={7}
               value={segText}
               onChange={e => { setSegText(e.target.value); markDirty(); setSegFormatError(''); }}
-              placeholder={'0,9,這件作品名為…\n9,20,藝術家以…\n20,30,流動的水面…'}
+              placeholder={'純文字模式（只產生音檔）：\n點一盞燈，在月光下靜靜的閱讀…\n\n時間戳記模式（同步反白）：\n0,9,這件作品名為…\n9,20,藝術家以…'}
             />
             {segFormatError && <p className="text-red-500 text-sm mt-2">{segFormatError}</p>}
+
+            {/* English segments (auto-generated) */}
+            {segments.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-stone-100">
+                <p className="text-xs font-medium text-stone-600 mb-2">英文逐字稿（自動生成）</p>
+                <div className="space-y-2">
+                  {segments.map(seg => {
+                    const enText = seg.texts.find(t => t.language_code === 'en');
+                    return (
+                      <div key={seg.id} className="text-xs flex gap-2 items-start">
+                        <span className="text-stone-300 font-mono whitespace-nowrap pt-0.5">
+                          {seg.start_time}–{seg.end_time}s
+                        </span>
+                        <span className={`flex-1 ${enText?.is_reviewed ? 'text-stone-700' : 'text-stone-500'}`}>
+                          {enText?.text ?? <span className="text-stone-300 italic">（翻譯未生成）</span>}
+                        </span>
+                        {enText && !enText.is_reviewed && (
+                          <span className="text-amber-500 whitespace-nowrap">待校對</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
 
         </div>
