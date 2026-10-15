@@ -624,38 +624,16 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
               </>
             ) : (
               <>
-                {segments.length > 0 ? (
-                  <>
-                    <p className="text-xs text-stone-400 mb-3">每行對應一個中文分段，順序相同。</p>
-                    <div className="flex gap-2">
-                      <div className="flex flex-col shrink-0 pt-1.5">
-                        {segments.map(seg => (
-                          <span key={seg.id} className="text-stone-300 font-mono text-xs leading-[1.625rem]">
-                            {seg.start_time}–{seg.end_time}s
-                          </span>
-                        ))}
-                      </div>
-                      <textarea
-                        className="form-input font-mono text-sm leading-6 flex-1"
-                        rows={Math.max(segments.length, 3)}
-                        value={enSegText}
-                        onChange={e => { setEnSegText(e.target.value); markDirty(); }}
-                        placeholder={segments.map((_, i) => `English text for segment ${i + 1}`).join('\n')}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs text-stone-400 mb-3">純文字或時間戳記格式（<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>）。</p>
-                    <textarea
-                      className="form-input font-mono text-sm leading-6"
-                      rows={Math.max(5, enSegText.split('\n').length + 1)}
-                      value={enSegText}
-                      onChange={e => { setEnSegText(e.target.value); markDirty(); }}
-                      placeholder={"純文字（每行一段）：\nThis artwork titled…\n\n或時間戳記格式：\n0,9,This artwork titled…\n9,20,The artist explores…"}
-                    />
-                  </>
-                )}
+                <p className="text-xs text-stone-400 mb-2">
+                  純文字或時間戳記格式（<code className="bg-stone-100 px-1 rounded">開始秒,結束秒,文字</code>）
+                </p>
+                <textarea
+                  className="form-input font-mono text-sm leading-6"
+                  rows={Math.max(6, enSegText.split('\n').length + 1)}
+                  value={enSegText}
+                  onChange={e => { setEnSegText(e.target.value); markDirty(); }}
+                  placeholder={'純文字模式（只產生音檔）：\nTwinkle, twinkle…\n\n時間戳記模式（同步反白）：\n0,9,This artwork titled…\n9,20,The artist…'}
+                />
               </>
             )}
           </section>
