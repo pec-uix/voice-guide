@@ -337,7 +337,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         }
       }
 
-      // Save Chinese segments (only if timestamps present; pure text is for audio generation only)
+      // Save Chinese segments — timestamped format via POST, plain text via PATCH (synthetic timestamps)
       if (segText.trim()) {
         const parsed = parseSegmentText(segText);
         if (parsed) {
@@ -351,6 +351,18 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             errors.push(sJson.error ?? '逐字稿儲存失敗');
           } else if (sJson.translation_warning) {
             hasTranslationWarning = true;
+          }
+        } else {
+          // Plain text: save via PATCH so it shows on the front end (synthetic timestamps)
+          const zhLines = segText.trim().split('\n').filter(l => l.trim());
+          const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ language_code: 'zh-TW', texts: zhLines }),
+          });
+          if (!sRes.ok) {
+            const j = await sRes.json();
+            errors.push(j.error ?? '逐字稿儲存失敗');
           }
         }
       }

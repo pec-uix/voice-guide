@@ -114,20 +114,16 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
   return (
     <div className="min-h-screen bg-[#f7f4ef]">
 
-      {/* Cover image — full bleed, no padding */}
+      {/* Cover image — full bleed, 16/9 capped at 280px */}
       {artwork.cover_image_url ? (
-        <div className="w-full overflow-hidden" style={{ aspectRatio: '4/3' }}>
+        <div className="w-full overflow-hidden" style={{ aspectRatio: '16/9', maxHeight: '280px' }}>
           <img
             src={artwork.cover_image_url}
             alt={translation?.title ?? artwork.code}
             className="w-full h-full object-cover"
           />
         </div>
-      ) : (
-        <div className="w-full bg-stone-100 flex items-center justify-center" style={{ aspectRatio: '4/3' }}>
-          <span className="text-stone-300 text-5xl">♪</span>
-        </div>
-      )}
+      ) : null}
 
       <div className="max-w-xl mx-auto px-6 pt-8 pb-24">
 
@@ -290,7 +286,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
             onClick={() => recordEvent('click_purchase')}
             className="block w-full text-center border border-stone-800 text-stone-800 py-4 text-sm font-medium tracking-wider hover:bg-stone-800 hover:text-white transition-colors"
           >
-            {t('buy', lang)} ↗
+            {t('buy', lang)}
           </a>
         )}
       </div>
