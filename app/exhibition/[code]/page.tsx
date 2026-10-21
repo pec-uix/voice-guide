@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import ExhibitionClient from './ExhibitionClient';
 import type { LanguageCode } from '@/lib/types';
 
-type ExhibitionRow = { id: string; code: string; name: string; description: string | null; review_url: string | null };
+type ExhibitionRow = { id: string; code: string; name: string; description: string | null; review_url: string | null; cover_image_url: string | null };
 type ArtworkRow    = { id: string; code: string; cover_image_url: string | null; artist: string | null; year: string | null };
 type TranslationRow = { artwork_id: string; language_code: string; title: string };
 
