@@ -5,8 +5,12 @@ export interface Exhibition {
   id: string;
   code: string;
   name: string;
+  name_en: string | null;
   description: string | null;
+  description_en: string | null;
   review_url: string | null;
+  cover_image_url: string | null;
+  mobile_cover_image_url: string | null;
   created_at: string;
 }
 

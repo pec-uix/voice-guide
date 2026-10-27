@@ -243,7 +243,11 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   const handleTranscribe = async () => {
     setTranscribing(true);
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/transcribe`, { method: 'POST' });
+      const res = await fetch(`/api/artworks/${artwork.id}/transcribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang }),
+      });
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '辨識失敗'); return; }
       const lines = json.data.map((s: { start_time: number; end_time: number; text: string }) =>
@@ -546,8 +550,8 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                     </button>
                   </>
                 )}
-                {/* Has audio, no transcript, zh-TW → primary transcribe action */}
-                {currentAudioUrl && !hasCurrentTranscript && lang === 'zh-TW' && (
+                {/* Has audio, no transcript → primary transcribe action */}
+                {currentAudioUrl && !hasCurrentTranscript && (
                   <button onClick={handleTranscribe} disabled={transcribing} className="btn-primary text-sm whitespace-nowrap">
                     {transcribing ? '辨識中…' : '✨ 轉逐字稿'}
                   </button>

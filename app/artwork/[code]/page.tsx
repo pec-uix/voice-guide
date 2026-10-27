@@ -41,11 +41,15 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
   if (!rows[0]) notFound();
   const artwork = rows[0] as unknown as Artwork;
 
-  // Determine if this is the last artwork in its exhibition (by created_at order)
   let exhibitionId: string | null = null;
+  let exhibitionCode: string | null = null;
   let isLastInExhibition = false;
+  let prevCode: string | null = null;
+  let nextCode: string | null = null;
   if (artwork.exhibition_id) {
     exhibitionId = artwork.exhibition_id;
+    const [exRow] = await sql`SELECT code FROM exhibitions WHERE id = ${artwork.exhibition_id}`;
+    exhibitionCode = exRow?.code ?? null;
     const [lastRow] = await sql`
       SELECT id FROM artworks
       WHERE exhibition_id = ${artwork.exhibition_id}
@@ -53,6 +57,19 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
       LIMIT 1
     `;
     isLastInExhibition = lastRow?.id === artwork.id;
+
+    const [navRow] = await sql`
+      WITH ordered AS (
+        SELECT id, code,
+          LAG(code)  OVER (ORDER BY created_at ASC) AS prev_code,
+          LEAD(code) OVER (ORDER BY created_at ASC) AS next_code
+        FROM artworks
+        WHERE exhibition_id = ${artwork.exhibition_id}
+      )
+      SELECT prev_code, next_code FROM ordered WHERE id = ${artwork.id}
+    `;
+    prevCode = navRow?.prev_code ?? null;
+    nextCode = navRow?.next_code ?? null;
   }
 
   const translations = (await sql`
@@ -85,7 +102,10 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
       segments={segments}
       initialLang={safeLang}
       exhibitionId={exhibitionId ?? undefined}
+      exhibitionCode={exhibitionCode ?? undefined}
       isLastInExhibition={isLastInExhibition}
+      prevCode={prevCode ?? undefined}
+      nextCode={nextCode ?? undefined}
     />
   );
 }

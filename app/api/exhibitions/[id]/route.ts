@@ -31,18 +31,21 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
     const body = await req.json();
-    const { code, name, description, review_url, cover_image_url } = body;
+    const { code, name, name_en, description, description_en, review_url, cover_image_url, mobile_cover_image_url } = body;
 
     const [existing] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const [row] = await sql`
       UPDATE exhibitions SET
-        code            = COALESCE(${code ?? null}, code),
-        name            = COALESCE(${name ?? null}, name),
-        description     = ${description !== undefined ? description : sql`description`},
-        review_url      = ${review_url !== undefined ? review_url : sql`review_url`},
-        cover_image_url = ${cover_image_url !== undefined ? cover_image_url : sql`cover_image_url`}
+        code                   = COALESCE(${code ?? null}, code),
+        name                   = COALESCE(${name ?? null}, name),
+        name_en                = ${name_en !== undefined ? name_en : sql`name_en`},
+        description            = ${description !== undefined ? description : sql`description`},
+        description_en         = ${description_en !== undefined ? description_en : sql`description_en`},
+        review_url             = ${review_url !== undefined ? review_url : sql`review_url`},
+        cover_image_url        = ${cover_image_url !== undefined ? cover_image_url : sql`cover_image_url`},
+        mobile_cover_image_url = ${mobile_cover_image_url !== undefined ? mobile_cover_image_url : sql`mobile_cover_image_url`}
       WHERE id = ${id}
       RETURNING *
     `;

@@ -2,6 +2,7 @@ export interface ParsedExhibition {
   name: string;
   description: string;
   coverImageUrl: string;
+  mobileCoverImageUrl: string;
   startDate: string;
   endDate: string;
   location: string;
@@ -118,6 +119,7 @@ export function parseNuxtExhibition(html: string): NuxtParseResult | null {
         name: (ex.exhibitionTitle as string) ?? '',
         description: descParts.join('\n\n'),
         coverImageUrl: (ex.imageUrlPc as string) ?? '',
+        mobileCoverImageUrl: (ex.imageUrlSp as string) ?? (ex.imageUrlPc as string) ?? '',
         startDate,
         endDate,
         location,

@@ -9,7 +9,7 @@ interface Props {
 export default function GalleryFooter({ lang }: Props) {
   return (
     <footer className="bg-[#555555] relative z-10">
-      <div className="px-6 py-8 flex items-start justify-between gap-6">
+      <div className="px-6 py-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
         {/* Contact info — left */}
         <div className="space-y-2">
           <div className="flex gap-4 text-sm text-gray-300">

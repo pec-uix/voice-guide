@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
           name: nuxtResult.exhibition.name,
           description: nuxtResult.exhibition.description,
           cover_image_url: nuxtResult.exhibition.coverImageUrl,
+          mobile_cover_image_url: nuxtResult.exhibition.mobileCoverImageUrl,
           startDate: nuxtResult.exhibition.startDate,
           endDate: nuxtResult.exhibition.endDate,
           location: nuxtResult.exhibition.location,

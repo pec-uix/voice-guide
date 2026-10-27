@@ -20,10 +20,13 @@ create table exhibitions (
   id uuid primary key default uuid_generate_v4(),
   code text not null unique,              -- 用在展覽入口 QR Code 網址，例如 EXPO01
   name text not null,
+  name_en text,
   description text,
+  description_en text,
   review_url text,                        -- 評價連結（如 Google 評價），整個展覽共用一個，
                                            -- 只在展覽總覽頁顯示，不放在個別作品頁
   cover_image_url text,                   -- 展覽封面／banner 圖（上傳至 Cloudinary）
+  mobile_cover_image_url text,            -- 手機版直式封面圖
   created_at timestamptz not null default now()
 );
 

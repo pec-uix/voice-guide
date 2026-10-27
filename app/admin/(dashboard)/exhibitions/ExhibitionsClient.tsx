@@ -18,8 +18,12 @@ interface Exhibition {
   id: string;
   code: string;
   name: string;
+  name_en: string | null;
   description: string | null;
+  description_en: string | null;
+  review_url: string | null;
   cover_image_url: string | null;
+  mobile_cover_image_url: string | null;
   artwork_count: number;
   created_at: string;
 }
@@ -44,7 +48,7 @@ const BASE_URL = typeof window !== 'undefined'
   : process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
 
 function emptyForm() {
-  return { code: '', name: '', description: '', cover_image_url: '' };
+  return { code: '', name: '', name_en: '', description: '', description_en: '', cover_image_url: '', mobile_cover_image_url: '' };
 }
 
 export default function ExhibitionsClient({ exhibitions: initial }: Props) {
@@ -54,7 +58,9 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   const [editId, setEditId] = useState<string | null>(null);
   const [qrId, setQrId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
+  const [formLang, setFormLang] = useState<'zh' | 'en'>('zh');
   const [saving, setSaving] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState('');
 
   const [importUrl, setImportUrl] = useState('');
@@ -104,19 +110,27 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     setImportUrl('');
     setImportError('');
     setImportedArtworks(null);
-    setBatchSuccess('');
   };
 
   const openCreate = () => {
     setEditId(null); setForm(emptyForm()); setError(''); setShowForm(true);
-    resetImport(); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
+    resetImport(); setBatchSuccess(''); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
   };
   const openEdit = (ex: Exhibition) => {
     setEditId(ex.id);
-    setForm({ code: ex.code, name: ex.name, description: ex.description ?? '', cover_image_url: ex.cover_image_url ?? '' });
+    setForm({
+      code: ex.code,
+      name: ex.name,
+      name_en: ex.name_en ?? '',
+      description: ex.description ?? '',
+      description_en: ex.description_en ?? '',
+      cover_image_url: ex.cover_image_url ?? '',
+      mobile_cover_image_url: ex.mobile_cover_image_url ?? '',
+    });
     setError('');
+    setFormLang('zh');
     setShowForm(true);
-    resetImport(); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
+    resetImport(); setBatchSuccess(''); setImageFile(null); setImageError(''); setCodeAutoFilled(false);
   };
 
   const handleImportUrl = async () => {
@@ -136,6 +150,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
         ...(d.name ? { name: d.name } : {}),
         ...(d.description ? { description: d.description } : {}),
         ...(d.cover_image_url ? { cover_image_url: d.cover_image_url } : {}),
+        ...(d.mobile_cover_image_url ? { mobile_cover_image_url: d.mobile_cover_image_url } : {}),
       }));
       if (d.artworks?.length) setImportedArtworks(d.artworks);
     } catch { setImportError('網路錯誤'); }
@@ -154,15 +169,17 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
           name: form.name.trim(),
           description: form.description || null,
           cover_image_url: form.cover_image_url || null,
+          mobile_cover_image_url: form.mobile_cover_image_url || null,
           artworks: importedArtworks,
         }),
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? '批次建立失敗'); return; }
-      setBatchSuccess(`已建立展覽「${form.name}」及 ${json.data.artworksCreated} 件作品`);
+      const msg = `已建立展覽「${form.name}」及 ${json.data.artworksCreated} 件作品`;
       setShowForm(false);
       resetImport();
       router.refresh();
+      setBatchSuccess(msg);
     } catch { setError('網路錯誤'); }
     finally { setBatchSaving(false); }
   };
@@ -180,6 +197,11 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? '儲存失敗'); return; }
+      if (editId) {
+        setExhibitions(prev => prev.map(e => e.id === editId ? { ...e, ...json.data } : e));
+      } else {
+        setExhibitions(prev => [{ ...json.data, artwork_count: 0 }, ...prev]);
+      }
       setShowForm(false);
       router.refresh();
     } catch {
@@ -287,21 +309,39 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
           {/* Banner image */}
           <div className="mt-4 pt-4 border-t border-stone-100">
-            <label className="form-label">展覽封面圖</label>
-            {form.cover_image_url && (
-              <img src={form.cover_image_url} alt="封面圖預覽"
-                className="w-full h-auto rounded-xl mb-3" />
-            )}
-            <input
-              className="form-input text-sm"
-              placeholder="貼上圖片網址（https://...）"
-              value={form.cover_image_url ?? ''}
-              onChange={e => setForm(f => ({ ...f, cover_image_url: e.target.value }))}
-            />
-            <p className="text-xs text-stone-400 mt-1">圖片將以原始比例顯示，建議寬度至少 1000px</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">橫式封面圖（電腦版）</label>
+                {form.cover_image_url && (
+                  <img src={form.cover_image_url} alt="封面圖預覽"
+                    className="w-full h-auto rounded-xl mb-3" />
+                )}
+                <input
+                  className="form-input text-sm"
+                  placeholder="貼上圖片網址（https://...）"
+                  value={form.cover_image_url ?? ''}
+                  onChange={e => setForm(f => ({ ...f, cover_image_url: e.target.value }))}
+                />
+                <p className="text-xs text-stone-400 mt-1">建議橫式，寬度至少 1200px</p>
+              </div>
+              <div>
+                <label className="form-label">直式封面圖（手機版）</label>
+                {form.mobile_cover_image_url && (
+                  <img src={form.mobile_cover_image_url} alt="手機封面圖預覽"
+                    className="w-full h-auto rounded-xl mb-3" />
+                )}
+                <input
+                  className="form-input text-sm"
+                  placeholder="貼上圖片網址（https://...）"
+                  value={form.mobile_cover_image_url ?? ''}
+                  onChange={e => setForm(f => ({ ...f, mobile_cover_image_url: e.target.value }))}
+                />
+                <p className="text-xs text-stone-400 mt-1">建議直式，寬度至少 600px；未填則沿用電腦版</p>
+              </div>
+            </div>
             {editId && (
               <div className="flex items-center gap-2 flex-wrap mt-2">
-                <span className="text-xs text-stone-400">或上傳檔案：</span>
+                <span className="text-xs text-stone-400">上傳橫式圖片：</span>
                 <label className="btn-ghost cursor-pointer text-xs">
                   選擇圖片
                   <input type="file" accept="image/*" className="sr-only"
