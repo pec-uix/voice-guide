@@ -92,7 +92,7 @@ export function parseNuxtProductPage(html: string): ParsedProduct | null {
   }
 }
 
-export function parseNuxtExhibition(html: string): NuxtParseResult | null {
+export function parseNuxtExhibition(html: string, lang: 'zh' | 'en' = 'zh'): NuxtParseResult | null {
   const match = html.match(/<script[^>]*id="__NUXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!match) return null;
 
@@ -111,15 +111,20 @@ export function parseNuxtExhibition(html: string): NuxtParseResult | null {
     const location = (ex.exhibitionLocation as string) ?? '';
 
     const descParts = [ex.exhibitionDescription as string].filter(Boolean);
-    if (location) descParts.unshift(`展覽地點：${location}`);
-    if (startDate && endDate) descParts.unshift(`展期：${startDate} ~ ${endDate}`);
+    if (lang === 'en') {
+      if (location) descParts.unshift(`Location: ${location}`);
+      if (startDate && endDate) descParts.unshift(`Date: ${startDate} ~ ${endDate}`);
+    } else {
+      if (location) descParts.unshift(`展覽地點：${location}`);
+      if (startDate && endDate) descParts.unshift(`展期：${startDate} ~ ${endDate}`);
+    }
 
     return {
       exhibition: {
         name: (ex.exhibitionTitle as string) ?? '',
         description: descParts.join('\n\n'),
         coverImageUrl: (ex.imageUrlPc as string) ?? '',
-        mobileCoverImageUrl: (ex.imageUrlSp as string) ?? '',
+        mobileCoverImageUrl: (ex.imageUrlMobile as string) ?? '',
         startDate,
         endDate,
         location,

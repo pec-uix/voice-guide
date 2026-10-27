@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     const nuxtResult = parseNuxtExhibition(html);
     if (nuxtResult) {
       // Parse English exhibition page for name_en / description_en
-      const enResult = enHtmlMaybe ? parseNuxtExhibition(enHtmlMaybe) : null;
+      const enResult = enHtmlMaybe ? parseNuxtExhibition(enHtmlMaybe, 'en') : null;
       const name_en = enResult?.exhibition.name ?? null;
       const description_en = enResult?.exhibition.description ?? null;
 
