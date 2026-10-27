@@ -39,11 +39,12 @@ interface Props {
 const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English' };
 const LANG_COLORS = ['#18181b', '#6366f1'];
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, desc }: { label: string; value: number; desc: string }) {
   return (
     <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
       <p className="text-xs text-stone-500 mb-1">{label}</p>
       <p className="text-2xl font-bold text-stone-900">{value.toLocaleString()}</p>
+      <p className="text-xs text-stone-400 mt-1.5 leading-snug">{desc}</p>
     </div>
   );
 }
@@ -61,11 +62,11 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard label="掃描 QR Code" value={Number(totals.total_scans)} />
-        <StatCard label="開始播放" value={Number(totals.total_plays)} />
-        <StatCard label="完整收聽" value={Number(totals.total_completes)} />
-        <StatCard label="點擊購買" value={Number(totals.total_purchases)} />
-        <StatCard label="點擊評論" value={Number(totals.total_reviews)} />
+        <StatCard label="掃描 QR Code" value={Number(totals.total_scans)} desc="參觀者掃描作品或展覽 QR Code、進入頁面的總次數" />
+        <StatCard label="開始播放" value={Number(totals.total_plays)} desc="點擊播放按鈕的次數（同一人多次播放會重複計算）" />
+        <StatCard label="完整收聽" value={Number(totals.total_completes)} desc="音檔播放至結尾的次數" />
+        <StatCard label="點擊購買" value={Number(totals.total_purchases)} desc="點擊「購買作品」連結跳出的次數" />
+        <StatCard label="點擊評論" value={Number(totals.total_reviews)} desc="點擊「留下評價」連結跳出的次數" />
       </div>
 
       {/* Daily trend */}
@@ -114,7 +115,10 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
 
         {/* Exhibition overview */}
         <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
-          <h2 className="text-base font-semibold text-stone-900 mb-4">展覽概況</h2>
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-stone-900">展覽概況</h2>
+            <p className="text-xs text-stone-400 mt-1">入場掃描＝掃展覽入口 QR Code 次數　評論點擊＝點擊評價連結次數</p>
+          </div>
           {exhibitionStats.length === 0 ? (
             <p className="text-sm text-stone-400 py-8 text-center">尚無展覽</p>
           ) : (
@@ -144,7 +148,10 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
 
       {/* Artwork rankings */}
       <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6">
-        <h2 className="text-base font-semibold text-stone-900 mb-4">作品成效排行（Top 20）</h2>
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-stone-900">作品成效排行（Top 20）</h2>
+          <p className="text-xs text-stone-400 mt-1">掃描＝進入作品頁次數　播放＝按下播放次數　完聽＝聽完整首次數　購買＝點擊購買連結次數</p>
+        </div>
         {artworkStats.length === 0 ? (
           <p className="text-sm text-stone-400 py-8 text-center">尚無資料</p>
         ) : (
