@@ -49,7 +49,7 @@ const BASE_URL = typeof window !== 'undefined'
   : process.env.NEXTAUTH_URL ?? 'http://localhost:3000';
 
 function emptyForm() {
-  return { code: '', name: '', name_en: '', description: '', description_en: '', cover_image_url: '', mobile_cover_image_url: '' };
+  return { code: '', name: '', name_en: '', description: '', description_en: '', review_url: '', cover_image_url: '', mobile_cover_image_url: '' };
 }
 
 export default function ExhibitionsClient({ exhibitions: initial }: Props) {
@@ -127,6 +127,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       name_en: ex.name_en ?? '',
       description: ex.description ?? '',
       description_en: ex.description_en ?? '',
+      review_url: ex.review_url ?? '',
       cover_image_url: ex.cover_image_url ?? '',
       mobile_cover_image_url: ex.mobile_cover_image_url ?? '',
     });
@@ -501,6 +502,18 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
               </div>
             </div>
           )}
+
+          {/* Review URL */}
+          <div className="mt-4 pt-4 border-t border-stone-100">
+            <label className="form-label">評論連結（選填）</label>
+            <input
+              className="form-input text-sm"
+              placeholder="例：https://g.page/r/xxxx/review（Google 評價短網址）"
+              value={form.review_url}
+              onChange={e => setForm(f => ({ ...f, review_url: e.target.value }))}
+            />
+            <p className="text-xs text-stone-400 mt-1">填入後，展覽頁會顯示「留下評價」按鈕，並在參觀者離開前彈出回饋視窗</p>
+          </div>
 
           {/* Banner image */}
           <div className="mt-4 pt-4 border-t border-stone-100">
