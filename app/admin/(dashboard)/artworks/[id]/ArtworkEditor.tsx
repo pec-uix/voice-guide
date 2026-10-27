@@ -582,26 +582,6 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
                     {transcribing ? '辨識中…' : '✨ 轉逐字稿'}
                   </button>
                 )}
-                {/* Has both → secondary regenerate option */}
-                {currentAudioUrl && hasCurrentTranscript && (
-                  <>
-                    {ttsUsedFallback
-                      ? <span className="text-xs text-amber-600">Edge TTS 限速中，聲音固定</span>
-                      : <select
-                          value={ttsVoices[lang] ?? ''}
-                          onChange={e => setTtsVoices(v => ({ ...v, [lang]: e.target.value }))}
-                          className="text-xs border border-stone-200 rounded-lg px-2 py-1.5 text-stone-700 bg-[#faf7f2]"
-                        >
-                          {(TTS_VOICES[lang] ?? []).map(v => (
-                            <option key={v.value} value={v.value}>{v.label}</option>
-                          ))}
-                        </select>
-                    }
-                    <button onClick={handleGenerateAudio} disabled={generatingAudio} className="btn-ghost text-sm whitespace-nowrap">
-                      {generatingAudio ? '產生中…' : '🔄 重新產生音檔'}
-                    </button>
-                  </>
-                )}
               </div>
             </div>
 

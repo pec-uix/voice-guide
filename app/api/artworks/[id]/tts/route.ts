@@ -89,11 +89,17 @@ export async function POST(req: NextRequest, { params }: Params) {
         break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        // Edge TTS uses https.request which isn't available in Cloudflare Workers
+        if (msg.includes('not implemented')) {
+          console.warn('Edge TTS not supported in this runtime, falling back to Google Translate TTS');
+          buffer = await gTranslateTTS(text.trim(), langCode);
+          usedFallback = true;
+          break;
+        }
         const isRetryable = msg.includes('429') || msg.includes('truncated') || msg.includes('Stream closed');
         if (!isRetryable) throw err;
         if (attempt === 2) {
-          // Edge TTS exhausted — fall back to Google Translate TTS
-          console.warn('Edge TTS unavailable, falling back to Google Translate TTS');
+          console.warn('Edge TTS exhausted retries, falling back to Google Translate TTS');
           buffer = await gTranslateTTS(text.trim(), langCode);
           usedFallback = true;
         }

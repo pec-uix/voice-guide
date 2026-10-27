@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import QRCode from 'qrcode';
 import QRCodeDisplay from '@/components/QRCodeDisplay';
 
 interface ArtworkRow {
@@ -185,8 +186,9 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       const msg = `已建立展覽「${form.name}」及 ${json.data.artworksCreated} 件作品`;
       setShowForm(false);
       resetImport();
-      router.refresh();
+      setExhibitions(prev => [{ ...json.data.exhibition, artwork_count: json.data.artworksCreated }, ...prev]);
       setBatchSuccess(msg);
+      setTimeout(() => setBatchSuccess(''), 3000);
     } catch { setError('網路錯誤'); }
     finally { setBatchSaving(false); }
   };
@@ -220,6 +222,88 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
   const handleDelete = (id: string, name: string) => {
     setConfirmDelete({ id, name });
+  };
+
+  const [batchQrLoading, setBatchQrLoading] = useState(false);
+
+  const handleBatchQR = async () => {
+    if (!editId) return;
+    const ex = exhibitions.find(e => e.id === editId);
+    if (!ex) return;
+    setBatchQrLoading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      const SIZE = 480;
+
+      async function makeQR(url: string, title: string): Promise<string> {
+        const canvas = document.createElement('canvas');
+        await QRCode.toCanvas(canvas, url, {
+          width: SIZE, margin: 2,
+          errorCorrectionLevel: 'H',
+          color: { dark: '#18181b', light: '#ffffff' },
+        });
+        const ctx = canvas.getContext('2d')!;
+        // Draw center label (same logic as QRCodeDisplay)
+        const boxW = SIZE * 0.30, boxH = SIZE * 0.30;
+        const bx = (SIZE - boxW) / 2, by = (SIZE - boxH) / 2;
+        const r = 6, pad = 7;
+        ctx.fillStyle = 'rgba(255,255,255,0.94)';
+        ctx.beginPath();
+        ctx.moveTo(bx + r, by); ctx.lineTo(bx + boxW - r, by);
+        ctx.quadraticCurveTo(bx + boxW, by, bx + boxW, by + r);
+        ctx.lineTo(bx + boxW, by + boxH - r);
+        ctx.quadraticCurveTo(bx + boxW, by + boxH, bx + boxW - r, by + boxH);
+        ctx.lineTo(bx + r, by + boxH);
+        ctx.quadraticCurveTo(bx, by + boxH, bx, by + boxH - r);
+        ctx.lineTo(bx, by + r);
+        ctx.quadraticCurveTo(bx, by, bx + r, by);
+        ctx.closePath(); ctx.fill();
+        const maxW = boxW - pad * 2;
+        const fontFace = '"PingFang TC","Microsoft JhengHei",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        let fontSize = 13;
+        const wrap = (fs: number) => {
+          ctx.font = `bold ${fs}px ${fontFace}`;
+          const lines: string[] = []; let cur = '';
+          for (const ch of title) {
+            if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch; }
+            else cur += ch;
+          }
+          if (cur) lines.push(cur);
+          return lines;
+        };
+        let lines = wrap(fontSize);
+        while (lines.length > 3 && fontSize > 8) { fontSize--; lines = wrap(fontSize); }
+        ctx.font = `bold ${fontSize}px ${fontFace}`; ctx.fillStyle = '#18181b';
+        const lineH = fontSize * 1.35, totalH = lines.length * lineH;
+        const startY = SIZE / 2 - totalH / 2 + lineH / 2;
+        lines.forEach((line, i) => ctx.fillText(line, SIZE / 2, startY + i * lineH));
+        return canvas.toDataURL('image/png').split(',')[1];
+      }
+
+      // Exhibition QR
+      const exUrl = `${BASE_URL}/exhibition/${ex.code}`;
+      const exPng = await makeQR(exUrl, ex.name);
+      zip.file(`展覽-${ex.code}.png`, exPng, { base64: true });
+
+      // Artwork QRs
+      for (const aw of editArtworks) {
+        const awUrl = `${BASE_URL}/artwork/${aw.code}`;
+        const awTitle = aw.title ?? aw.code;
+        const awPng = await makeQR(awUrl, awTitle);
+        zip.file(`作品-${aw.code}.png`, awPng, { base64: true });
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `qrcodes-${ex.code}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setBatchQrLoading(false);
+    }
   };
 
   const handleTranslate = async () => {
@@ -494,10 +578,19 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                     <span className="text-stone-400 font-normal ml-2">{editArtworks.length} 件</span>
                   )}
                 </h3>
-                <Link href={`/admin/artworks?exhibition_id=${editId}`}
-                  className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors">
-                  管理作品 →
-                </Link>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleBatchQR}
+                    disabled={batchQrLoading || editArtworks.length === 0}
+                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-40"
+                  >
+                    {batchQrLoading ? '產生中…' : '⬇ 批次下載 QR'}
+                  </button>
+                  <Link href={`/admin/artworks?exhibition_id=${editId}`}
+                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors">
+                    管理作品 →
+                  </Link>
+                </div>
               </div>
               {editArtworksLoading ? (
                 <p className="text-stone-400 text-sm py-6 text-center">載入中…</p>
