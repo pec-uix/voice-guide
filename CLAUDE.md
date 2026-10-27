@@ -31,15 +31,25 @@
 
 Cloudflare 自己也有免費資料庫 D1，可以取代 Neon，好處是帳號更集中，代價是 D1 是 SQLite 語法，跟下面的 schema（Postgres 語法）需要改寫。目前先用 Neon，之後有需要再評估要不要遷移。
 
-### 暫緩事項：Firebase Hosting（公司網域）
+### 網域方向（待需求方確認後執行）
 
-公司內部有些系統掛在 Firebase Hosting（`xxx.web.app`），曾評估過把前台網址改掛過去，但**先不做**，原因：
+目前正式機跑在 `https://voice-guide.pec-uix.workers.dev`，網域方向**初步確定走 Firebase App Hosting**，等需求方確認後再動：
 
-- 申請 Firebase 專案要走公司內部流程，等待時間不可控，不該卡住開發進度
-- 前後端分離（前台在 Firebase、API 在 Cloudflare）需要多處理 CORS，且 Next.js 要改成靜態輸出（`output: 'export'`），這些複雜度在專案還沒驗證可行前不需要先扛
-- **晚一點再拆，成本可控**：等有一個能跑的版本後，如果公司真的要求要用 `xxx.web.app` 網域，再把前台部分抽出來部署到 Firebase Hosting，這時候已經有現成程式碼，改動範圍就是「加一層 CORS + 把輸出模式改成 export」，不是從零開始。反過來，如果一開始就為了配合公司網域把架構拆成兩個服務，結果公司流程卡住或最後決定不需要，就白白多背了這層複雜度
+- **方向：Firebase App Hosting + `web.app` 免費網址**
+  - 不需要買網域
+  - 支援 Next.js SSR，架構不用改
+  - 連上 GitHub repo 後每次 push 自動部署
+  - 底層跑 Cloud Run，免費額度每月 200 萬次請求，以這個展覽規模（預估每月約 3 萬次）完全夠用
+  - 網址格式：`voice-guide.web.app` 或 `voice-guide--[firebase專案ID].web.app`
+  - 公司現有 Firebase 專案：`pec-hourflow-taskhub`
+  - 需要把所有環境變數重新設定到 Firebase App Hosting（`DATABASE_URL`、`GROQ_API_KEY` 等）
 
-> 若之後真的要做這個拆分，可以參考本文件先前版本記錄的「前台／API 分離架構」（Firebase Hosting 放靜態頁面 + Cloudflare Pages Functions 提供 API，兩者用跨網域 fetch 串接）。
+- **備選方向：Cloudflare 買網域**
+  - 一年約 $10–15 美金
+  - 設定最簡單（同帳號內直接接上），5 分鐘完成
+  - 適合不想依賴公司 Firebase 專案的情況
+
+> 現階段先跑 `workers.dev`，等需求方確認網址需求後再切換。
 
 ## 3. 系統架構
 
