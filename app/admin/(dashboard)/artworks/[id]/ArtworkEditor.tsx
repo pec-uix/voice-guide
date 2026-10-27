@@ -554,7 +554,10 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
           {/* Audio + Transcript — unified */}
           <section className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-stone-900">音檔與逐字稿</h2>
+              <div>
+                <h2 className="text-base font-semibold text-stone-900">音檔與逐字稿</h2>
+                <p className="text-xs text-stone-400 mt-0.5">{lang === 'en' ? '英文音檔' : '中文音檔（原音）'}</p>
+              </div>
               <div className="flex items-center gap-2">
                 {/* Has transcript, no audio → primary TTS action */}
                 {hasCurrentTranscript && !currentAudioUrl && (
@@ -609,7 +612,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             ) : (
               <div className="mb-5">
                 <label className="cursor-pointer">
-                  <span className="btn-ghost text-sm">選擇音檔上傳</span>
+                  <span className="btn-ghost text-sm">選擇{lang === 'en' ? '英文' : '中文'}音檔上傳</span>
                   <input type="file" accept="audio/*" className="hidden"
                     onChange={e => { setAudioFile(e.target.files?.[0] ?? null); setAudioError(''); }} />
                 </label>
