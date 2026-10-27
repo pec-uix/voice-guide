@@ -72,7 +72,7 @@ export default function WorksClient({ exhibition, artworks, translations, initia
         <div
           className="relative overflow-hidden"
           style={{
-            aspectRatio: '12/5',
+            aspectRatio: '9/5',
             boxShadow: '0 2px 8px rgba(0,0,0,0.08), 0 12px 40px rgba(0,0,0,0.14), 0 40px 80px rgba(0,0,0,0.10)',
             border: '1px solid rgba(0,0,0,0.08)',
             background: '#111',
