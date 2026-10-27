@@ -233,6 +233,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           onClick={() => recordEvent('click_purchase')}
           className="flex items-center justify-center gap-2 w-full bg-violet-600 text-white py-3.5 text-sm font-medium tracking-wider hover:bg-violet-700 transition-colors">
           {t('buy', lang)}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path strokeLinecap="round" strokeLinejoin="round" d="M16 10a4 4 0 0 1-8 0"/></svg>
         </a>
       )}
     </div>
