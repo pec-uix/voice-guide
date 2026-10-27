@@ -1,6 +1,7 @@
-import { auth, signOut } from '@/auth';
+import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import LogoutButton from './LogoutButton';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -21,19 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <span className="text-xs text-stone-400 hidden sm:block">
               {session.user?.email}
             </span>
-            <form
-              action={async () => {
-                'use server';
-                await signOut({ redirectTo: '/admin' });
-              }}
-            >
-              <button
-                type="submit"
-                className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-3 py-1.5 hover:border-stone-400 transition-colors"
-              >
-                登出
-              </button>
-            </form>
+            <LogoutButton />
           </div>
         </div>
       </header>
