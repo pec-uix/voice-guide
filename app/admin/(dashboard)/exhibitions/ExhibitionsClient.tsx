@@ -81,6 +81,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [qrModal, setQrModal] = useState<{ id: string; name: string; code: string } | null>(null);
 
   useEffect(() => {
     if (!editId) { setEditArtworks([]); return; }
@@ -226,12 +227,15 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
   const [batchQrLoading, setBatchQrLoading] = useState(false);
 
-  const handleBatchQR = async () => {
-    if (!editId) return;
-    const ex = exhibitions.find(e => e.id === editId);
+  const handleBatchQR = async (exOverride?: { id: string; name: string; code: string }) => {
+    const ex = exOverride ?? (editId ? exhibitions.find(e => e.id === editId) : null);
     if (!ex) return;
     setBatchQrLoading(true);
     try {
+      // Fetch artworks if not already loaded for this exhibition
+      const artworks = (exOverride && exOverride.id !== editId)
+        ? await fetch(`/api/artworks?exhibition_id=${exOverride.id}`).then(r => r.json()).then((j: { data?: ArtworkRow[] }) => j.data ?? [])
+        : editArtworks;
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       const SIZE = 480;
@@ -288,7 +292,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       zip.file(`展覽-${ex.code}.png`, exPng, { base64: true });
 
       // Artwork QRs
-      for (const aw of editArtworks) {
+      for (const aw of artworks) {
         const awUrl = `${BASE_URL}/artwork/${aw.code}`;
         const awTitle = aw.title ?? aw.code;
         const awPng = await makeQR(awUrl, awTitle);
@@ -360,6 +364,42 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                 className="px-4 py-2 text-sm rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 {deleting ? '刪除中…' : '確認刪除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Modal */}
+      {qrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !batchQrLoading && setQrModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-stone-900 mb-1">下載 QR Code</h3>
+            <p className="text-sm text-stone-500 mb-4">「{qrModal.name}」</p>
+
+            <div className="flex justify-center mb-5">
+              <QRCodeDisplay
+                url={`${BASE_URL}/exhibition/${qrModal.code}`}
+                label={`exhibition-${qrModal.code}`}
+                title={qrModal.name}
+                size={200}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleBatchQR(qrModal)}
+                disabled={batchQrLoading}
+                className="w-full px-4 py-2.5 text-sm rounded-xl bg-stone-900 text-white hover:bg-stone-700 transition-colors disabled:opacity-50"
+              >
+                {batchQrLoading ? '產生中…' : '⬇ 批次下載（展覽 + 所有作品）'}
+              </button>
+              <button
+                onClick={() => setQrModal(null)}
+                className="w-full px-4 py-2 text-sm rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                關閉
               </button>
             </div>
           </div>
@@ -580,7 +620,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                 </h3>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleBatchQR}
+                    onClick={() => handleBatchQR()}
                     disabled={batchQrLoading || editArtworks.length === 0}
                     className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-40"
                   >
@@ -669,7 +709,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                       <div className="flex items-center justify-between mt-auto">
                         <span className="text-xs text-stone-400">{ex.artwork_count} 件作品</span>
                         <div className="flex items-center gap-1.5">
-                          <button onClick={e => { e.stopPropagation(); setQrId(qrId === ex.id ? null : ex.id); }}
+                          <button onClick={e => { e.stopPropagation(); setQrModal({ id: ex.id, name: ex.name, code: ex.code }); }}
                             className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2 py-1 transition-colors">
                             QR
                           </button>
@@ -680,17 +720,6 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                         </div>
                       </div>
 
-                      {/* QR Code panel */}
-                      {qrId === ex.id && (
-                        <div className="pt-3 border-t border-stone-100">
-                          <p className="text-xs font-medium text-stone-500 mb-2">展覽入口 QR Code</p>
-                          <QRCodeDisplay
-                            url={`${BASE_URL}/exhibition/${ex.code}`}
-                            label={`exhibition-${ex.code}`}
-                            title={ex.name}
-                          />
-                        </div>
-                      )}
                     </div>
 
                   </div>
