@@ -1,42 +1,57 @@
-import { v2 as cloudinary } from 'cloudinary';
+async function sha1Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('SHA-1', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
-function configure() {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
+async function uploadToCloudinary(
+  buffer: Buffer,
+  publicId: string,
+  resourceType: 'image' | 'video',
+  mimeType?: string,
+): Promise<{ url: string } | { error: string }> {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return { error: 'Cloudinary credentials not configured' };
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = await sha1Hex(`public_id=${publicId}&timestamp=${timestamp}${apiSecret}`);
+
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), 'upload');
+  form.append('public_id', publicId);
+  form.append('timestamp', timestamp);
+  form.append('api_key', apiKey);
+  form.append('signature', signature);
+
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      { method: 'POST', body: form },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('Cloudinary error:', text);
+      return { error: 'Upload failed' };
+    }
+    const json = await res.json() as { secure_url: string };
+    return { url: json.secure_url };
+  } catch (err) {
+    console.error('Cloudinary upload error:', err);
+    return { error: 'Upload failed' };
+  }
 }
 
 export async function uploadImage(
   buffer: Buffer,
   filename: string,
 ): Promise<{ url: string } | { error: string }> {
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    return { error: 'Cloudinary credentials not configured' };
-  }
-
-  configure();
-
   const publicId = filename.replace(/\.[^/.]+$/, '');
-
-  try {
-    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'image', public_id: publicId },
-        (error, result) => {
-          if (error || !result) reject(error ?? new Error('No result'));
-          else resolve(result);
-        },
-      );
-      stream.end(buffer);
-    });
-
-    return { url: result.secure_url };
-  } catch (err) {
-    console.error('Cloudinary upload error:', err);
-    return { error: 'Upload failed' };
-  }
+  return uploadToCloudinary(buffer, publicId, 'image');
 }
 
 export async function uploadAudio(
@@ -44,30 +59,6 @@ export async function uploadAudio(
   filename: string,
   contentType: string,
 ): Promise<{ url: string } | { error: string }> {
-  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-    return { error: 'Cloudinary credentials not configured' };
-  }
-
-  configure();
-
-  // Strip extension — Cloudinary manages its own format/extension
   const publicId = filename.replace(/\.[^/.]+$/, '');
-
-  try {
-    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { resource_type: 'video', public_id: publicId },
-        (error, result) => {
-          if (error || !result) reject(error ?? new Error('No result'));
-          else resolve(result);
-        },
-      );
-      stream.end(buffer);
-    });
-
-    return { url: result.secure_url };
-  } catch (err) {
-    console.error('Cloudinary upload error:', err);
-    return { error: 'Upload failed' };
-  }
+  return uploadToCloudinary(buffer, publicId, 'video', contentType);
 }
