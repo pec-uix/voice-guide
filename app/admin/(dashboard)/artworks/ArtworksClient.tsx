@@ -40,6 +40,8 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState(initialExhibitionId ?? '');
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const openCreate = () => { setForm(emptyForm(filter)); setError(''); setShowForm(true); };
 
@@ -76,15 +78,44 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
     }
   };
 
-  const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`確定要刪除「${title}」？相關逐字稿和翻譯也會一併刪除。`)) return;
-    const res = await fetch(`/api/artworks/${id}`, { method: 'DELETE' });
-    if (res.ok) router.refresh();
-    else alert('刪除失敗');
+  const handleDelete = (id: string, title: string) => setConfirmDelete({ id, title });
+
+  const confirmDeleteExecution = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    const res = await fetch(`/api/artworks/${confirmDelete.id}`, { method: 'DELETE' });
+    setDeleting(false);
+    setConfirmDelete(null);
+    if (res.ok) window.location.reload();
+    else {
+      const json = await res.json().catch(() => ({}));
+      alert(`刪除失敗：${json.error ?? '請稍後再試'}`);
+    }
   };
 
   return (
     <div>
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setConfirmDelete(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-base font-semibold text-stone-900 mb-2">刪除作品</h3>
+            <p className="text-sm text-stone-600 mb-1">確定要刪除「<span className="font-medium text-stone-900">{confirmDelete.title}</span>」嗎？</p>
+            <p className="text-sm text-red-500 mb-6">逐字稿、翻譯及相關資料將一併刪除，此操作無法復原。</p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setConfirmDelete(null)} disabled={deleting}
+                className="px-4 py-2 text-sm rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors disabled:opacity-50">
+                取消
+              </button>
+              <button onClick={confirmDeleteExecution} disabled={deleting}
+                className="px-4 py-2 text-sm rounded-xl bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50">
+                {deleting ? '刪除中…' : '確認刪除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-stone-900">作品管理</h1>
         <button onClick={openCreate} className="btn-primary">＋ 新增作品</button>

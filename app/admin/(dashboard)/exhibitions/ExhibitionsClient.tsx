@@ -57,11 +57,9 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   const [exhibitions, setExhibitions] = useState(initial);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [qrId, setQrId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [formLang, setFormLang] = useState<'zh' | 'en'>('zh');
   const [saving, setSaving] = useState(false);
-  const [translating, setTranslating] = useState(false);
   const [error, setError] = useState('');
 
   const [importUrl, setImportUrl] = useState('');
@@ -308,23 +306,6 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     } finally {
       setBatchQrLoading(false);
     }
-  };
-
-  const handleTranslate = async () => {
-    if (!editId) return;
-    setTranslating(true); setError('');
-    try {
-      const res = await fetch(`/api/exhibitions/${editId}/translate`, { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) { setError(json.error ?? '翻譯失敗'); return; }
-      setForm(f => ({
-        ...f,
-        name_en: (json.data.name_en as string) ?? f.name_en,
-        description_en: (json.data.description_en as string) ?? f.description_en,
-      }));
-      setFormLang('en');
-    } catch { setError('網路錯誤'); }
-    finally { setTranslating(false); }
   };
 
   const confirmDeleteExecution = async () => {

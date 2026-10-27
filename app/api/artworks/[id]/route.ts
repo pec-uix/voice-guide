@@ -122,6 +122,10 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const [existing] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+    await sql`DELETE FROM transcript_segment_texts WHERE segment_id IN (SELECT id FROM transcript_segments WHERE artwork_id = ${id})`;
+    await sql`DELETE FROM transcript_segments WHERE artwork_id = ${id}`;
+    await sql`DELETE FROM artwork_translations WHERE artwork_id = ${id}`;
+    await sql`DELETE FROM events WHERE artwork_id = ${id}`;
     await sql`DELETE FROM artworks WHERE id = ${id}`;
     return NextResponse.json({ data: { deleted: true } });
   } catch (err) {
