@@ -422,6 +422,14 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-stone-900">編輯作品</h1>
         <div className="flex gap-2">
+          <a
+            href={`${BASE_URL}/artwork/${artwork.code}?lang=${lang}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-ghost text-sm"
+          >
+            預覽 ↗
+          </a>
           <button
             onClick={() => { setShowImport(v => !v); setImportDone(false); setImportError(''); }}
             className="btn-ghost text-sm"

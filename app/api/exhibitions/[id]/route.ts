@@ -69,21 +69,19 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const [existing] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // 取得該展覽底下所有作品 id，連帶刪除作品及相關資料
-    const artworks = await sql`SELECT id FROM artworks WHERE exhibition_id = ${id}`;
-    for (const artwork of artworks) {
-      await sql`DELETE FROM transcript_segment_texts WHERE segment_id IN (SELECT id FROM transcript_segments WHERE artwork_id = ${artwork.id})`;
-      await sql`DELETE FROM transcript_segments WHERE artwork_id = ${artwork.id}`;
-      await sql`DELETE FROM artwork_translations WHERE artwork_id = ${artwork.id}`;
-      await sql`DELETE FROM events WHERE artwork_id = ${artwork.id}`;
-    }
+    // 用子查詢一次刪完，避免 Cloudflare Workers 50 subrequest 限制
+    await sql`DELETE FROM transcript_segment_texts WHERE segment_id IN (SELECT ts.id FROM transcript_segments ts JOIN artworks a ON a.id = ts.artwork_id WHERE a.exhibition_id = ${id})`;
+    await sql`DELETE FROM transcript_segments WHERE artwork_id IN (SELECT id FROM artworks WHERE exhibition_id = ${id})`;
+    await sql`DELETE FROM artwork_translations WHERE artwork_id IN (SELECT id FROM artworks WHERE exhibition_id = ${id})`;
+    await sql`DELETE FROM events WHERE artwork_id IN (SELECT id FROM artworks WHERE exhibition_id = ${id})`;
     await sql`DELETE FROM artworks WHERE exhibition_id = ${id}`;
     await sql`DELETE FROM events WHERE exhibition_id = ${id}`;
     await sql`DELETE FROM exhibition_feedback WHERE exhibition_id = ${id}`;
     await sql`DELETE FROM exhibitions WHERE id = ${id}`;
     return NextResponse.json({ data: { deleted: true } });
   } catch (err) {
-    console.error('[DELETE exhibition]', err);
-    return NextResponse.json({ error: 'Failed to delete exhibition' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[DELETE exhibition]', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

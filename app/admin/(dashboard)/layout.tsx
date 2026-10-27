@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+
 import LogoutButton from './LogoutButton';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -34,11 +34,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link
+    <a
       href={href}
       className="px-3 py-1.5 rounded-lg text-sm text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors"
     >
       {children}
-    </Link>
+    </a>
   );
 }

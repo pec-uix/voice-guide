@@ -224,8 +224,11 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     const res = await fetch(`/api/exhibitions/${confirmDelete.id}`, { method: 'DELETE' });
     setDeleting(false);
     setConfirmDelete(null);
-    if (res.ok) router.refresh();
-    else alert('刪除失敗，請稍後再試');
+    if (res.ok) window.location.reload();
+    else {
+      const json = await res.json().catch(() => ({}));
+      alert(`刪除失敗：${json.error ?? '請稍後再試'}`);
+    }
   };
 
   return (
@@ -523,7 +526,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                             QR
                           </button>
                           <button onClick={e => { e.stopPropagation(); handleDelete(ex.id, ex.name); }}
-                            className="text-xs text-red-400 hover:text-red-600 transition-colors px-1">
+                            className="text-xs text-red-400 hover:text-red-600 transition-colors px-2 py-1">
                             刪除
                           </button>
                         </div>
