@@ -112,12 +112,6 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
                     className="w-full h-auto lg:h-full object-cover transition-transform duration-500 hover:scale-[1.02]"
                   />
                 </picture>
-                {/* Name at bottom of banner */}
-                <div className="absolute bottom-0 left-0 right-0 px-6 pb-6 text-white">
-                  <h1 className="font-serif text-2xl lg:text-3xl font-bold leading-tight tracking-wide" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>
-                    {exhibition.name}
-                  </h1>
-                </div>
               </>
             ) : (
               <div className="aspect-[3/4] lg:absolute lg:inset-0 bg-gradient-to-br from-stone-300 via-stone-200 to-amber-100" />
