@@ -20,10 +20,12 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { code, name, description, cover_image_url, mobile_cover_image_url, artworks } = body as {
+  const { code, name, name_en, description, description_en, cover_image_url, mobile_cover_image_url, artworks } = body as {
     code: string;
     name: string;
+    name_en?: string | null;
     description?: string;
+    description_en?: string | null;
     cover_image_url?: string;
     mobile_cover_image_url?: string;
     artworks?: ArtworkInput[];
@@ -34,8 +36,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const [exhibition] = await sql`
-      INSERT INTO exhibitions (code, name, description, cover_image_url, mobile_cover_image_url)
-      VALUES (${code.trim()}, ${name.trim()}, ${description ?? null}, ${cover_image_url ?? null}, ${mobile_cover_image_url ?? null})
+      INSERT INTO exhibitions (code, name, name_en, description, description_en, cover_image_url, mobile_cover_image_url)
+      VALUES (${code.trim()}, ${name.trim()}, ${name_en ?? null}, ${description ?? null}, ${description_en ?? null}, ${cover_image_url ?? null}, ${mobile_cover_image_url ?? null})
       RETURNING *
     `;
 

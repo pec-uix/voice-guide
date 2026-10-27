@@ -26,7 +26,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const html = await fetchHtml(url);
+    // Derive English URL for uniart topics (insert /en/ before /topics/)
+    const enUrl = url.replace(/^(https?:\/\/[^/]+)(\/topics\/)/, '$1/en$2');
+    const isUniart = enUrl !== url;
+
+    const [html, enHtmlMaybe] = await Promise.all([
+      fetchHtml(url),
+      isUniart ? fetchHtml(enUrl) : Promise.resolve(null),
+    ]);
+
     if (!html) {
       return NextResponse.json({ error: '無法取得頁面，請確認網址是否正確' }, { status: 400 });
     }
@@ -34,6 +42,11 @@ export async function POST(req: NextRequest) {
     // Try Nuxt __NUXT_DATA__ parser first (richer data, no Gemini quota needed)
     const nuxtResult = parseNuxtExhibition(html);
     if (nuxtResult) {
+      // Parse English exhibition page for name_en / description_en
+      const enResult = enHtmlMaybe ? parseNuxtExhibition(enHtmlMaybe) : null;
+      const name_en = enResult?.exhibition.name ?? null;
+      const description_en = enResult?.exhibition.description ?? null;
+
       // For uniart artworks, fetch English titles in parallel
       const artworksWithEn = await Promise.all(
         nuxtResult.artworks.map(async aw => {
@@ -47,7 +60,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         data: {
           name: nuxtResult.exhibition.name,
+          name_en,
           description: nuxtResult.exhibition.description,
+          description_en,
           cover_image_url: nuxtResult.exhibition.coverImageUrl,
           mobile_cover_image_url: nuxtResult.exhibition.mobileCoverImageUrl,
           startDate: nuxtResult.exhibition.startDate,

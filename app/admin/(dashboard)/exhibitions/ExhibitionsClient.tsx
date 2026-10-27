@@ -151,7 +151,9 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
       setForm(f => ({
         ...f,
         ...(d.name ? { name: d.name } : {}),
+        ...(d.name_en ? { name_en: d.name_en } : {}),
         ...(d.description ? { description: d.description } : {}),
+        ...(d.description_en ? { description_en: d.description_en } : {}),
         ...(d.cover_image_url ? { cover_image_url: d.cover_image_url } : {}),
         ...(d.mobile_cover_image_url ? { mobile_cover_image_url: d.mobile_cover_image_url } : {}),
       }));
@@ -170,7 +172,9 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
         body: JSON.stringify({
           code: form.code.trim(),
           name: form.name.trim(),
+          name_en: form.name_en || null,
           description: form.description || null,
+          description_en: form.description_en || null,
           cover_image_url: form.cover_image_url || null,
           mobile_cover_image_url: form.mobile_cover_image_url || null,
           artworks: importedArtworks,
@@ -216,6 +220,23 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
 
   const handleDelete = (id: string, name: string) => {
     setConfirmDelete({ id, name });
+  };
+
+  const handleTranslate = async () => {
+    if (!editId) return;
+    setTranslating(true); setError('');
+    try {
+      const res = await fetch(`/api/exhibitions/${editId}/translate`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? '翻譯失敗'); return; }
+      setForm(f => ({
+        ...f,
+        name_en: (json.data.name_en as string) ?? f.name_en,
+        description_en: (json.data.description_en as string) ?? f.description_en,
+      }));
+      setFormLang('en');
+    } catch { setError('網路錯誤'); }
+    finally { setTranslating(false); }
   };
 
   const confirmDeleteExecution = async () => {
@@ -329,24 +350,58 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="form-label">展覽代碼 *</label>
               <input className="form-input" placeholder="例：EXPO01" value={form.code}
                 onChange={e => { setCodeAutoFilled(false); setForm(f => ({ ...f, code: e.target.value })); }} />
               <p className="text-xs text-stone-400 mt-1">用於 QR Code 網址，建立後建議不要更改</p>
             </div>
-            <div>
-              <label className="form-label">展覽名稱 *</label>
-              <input className="form-input" placeholder="例：2024 春季聯展" value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="form-label">展覽簡介</label>
-              <textarea className="form-input" rows={8} value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-            </div>
           </div>
+
+          {/* Language tabs */}
+          <div className="flex items-center gap-1 border-b border-stone-200 mb-4">
+            {(['zh', 'en'] as const).map(l => (
+              <button key={l} type="button" onClick={() => setFormLang(l)}
+                className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${formLang === l ? 'border-stone-900 text-stone-900' : 'border-transparent text-stone-400 hover:text-stone-700'}`}>
+                {l === 'zh' ? '中文' : 'English'}
+              </button>
+            ))}
+            {editId && (
+              <button type="button" onClick={handleTranslate} disabled={translating}
+                className="ml-auto text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50">
+                {translating ? '翻譯中…' : '✦ AI 翻譯中文 → 英文'}
+              </button>
+            )}
+          </div>
+
+          {formLang === 'zh' ? (
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="form-label">展覽名稱 *</label>
+                <input className="form-input" placeholder="例：2024 春季聯展" value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="form-label">展覽簡介</label>
+                <textarea className="form-input" rows={8} value={form.description}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="form-label">Exhibition Name</label>
+                <input className="form-input" placeholder="e.g. 2024 Spring Exhibition" value={form.name_en}
+                  onChange={e => setForm(f => ({ ...f, name_en: e.target.value }))} />
+              </div>
+              <div>
+                <label className="form-label">Description (English)</label>
+                <textarea className="form-input" rows={8} value={form.description_en}
+                  onChange={e => setForm(f => ({ ...f, description_en: e.target.value }))} />
+              </div>
+            </div>
+          )}
 
           {/* Banner image */}
           <div className="mt-4 pt-4 border-t border-stone-100">
