@@ -169,6 +169,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
                 <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">代碼</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">作品名稱</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">藝術家</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">所屬展覽</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">翻譯狀態</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -181,6 +182,11 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
                   </td>
                   <td className="px-4 py-3 font-medium text-stone-900">{aw.title ?? '（無標題）'}</td>
                   <td className="px-4 py-3 text-stone-500">{aw.artist ?? '—'}</td>
+                  <td className="px-4 py-3 text-stone-500">
+                    {aw.exhibition_id
+                      ? (exhibitions.find(ex => ex.id === aw.exhibition_id)?.name ?? '—')
+                      : <span className="text-xs text-stone-300">未歸屬</span>}
+                  </td>
                   <td className="px-4 py-3">
                     {aw.pending_count > 0 ? (
                       <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">

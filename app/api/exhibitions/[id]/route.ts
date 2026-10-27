@@ -69,14 +69,21 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const [existing] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // 明確清理關聯資料，避免 FK 約束擋住刪除
-    await sql`UPDATE artworks SET exhibition_id = NULL WHERE exhibition_id = ${id}`;
-    await sql`DELETE FROM events WHERE exhibition_id = ${id} AND artwork_id IS NULL`;
+    // 取得該展覽底下所有作品 id，連帶刪除作品及相關資料
+    const artworks = await sql`SELECT id FROM artworks WHERE exhibition_id = ${id}`;
+    for (const artwork of artworks) {
+      await sql`DELETE FROM transcript_segment_texts WHERE segment_id IN (SELECT id FROM transcript_segments WHERE artwork_id = ${artwork.id})`;
+      await sql`DELETE FROM transcript_segments WHERE artwork_id = ${artwork.id}`;
+      await sql`DELETE FROM artwork_translations WHERE artwork_id = ${artwork.id}`;
+      await sql`DELETE FROM events WHERE artwork_id = ${artwork.id}`;
+    }
+    await sql`DELETE FROM artworks WHERE exhibition_id = ${id}`;
+    await sql`DELETE FROM events WHERE exhibition_id = ${id}`;
     await sql`DELETE FROM exhibition_feedback WHERE exhibition_id = ${id}`;
     await sql`DELETE FROM exhibitions WHERE id = ${id}`;
     return NextResponse.json({ data: { deleted: true } });
   } catch (err) {
-    console.error(err);
+    console.error('[DELETE exhibition]', err);
     return NextResponse.json({ error: 'Failed to delete exhibition' }, { status: 500 });
   }
 }
