@@ -39,7 +39,7 @@ interface Props {
   initialLang: LanguageCode;
 }
 
-const TRIGGER_KEY = (id: string) => `vg_fb_trigger_${id}`;
+export const TRIGGER_KEY = (id: string) => `vg_fb_trigger_${id}`;
 
 function cdnUrl(url: string | null, transform: string): string {
   if (!url) return '';

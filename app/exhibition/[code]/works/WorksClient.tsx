@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import type { LanguageCode } from '@/lib/types';
 import GalleryHeader from '@/components/GalleryHeader';
 import GalleryFooter from '@/components/GalleryFooter';
+import FeedbackModal, { isFeedbackSubmitted } from '@/components/FeedbackModal';
+import { TRIGGER_KEY } from '@/app/exhibition/[code]/ExhibitionClient';
 
 function cdnUrl(url: string | null, transform: string): string {
   if (!url) return '';
@@ -28,8 +30,34 @@ export default function WorksClient({ exhibition, artworks, translations, initia
   const [lang, setLang] = useState<LanguageCode>(initialLang);
   const [current, setCurrent] = useState(0);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showFeedback, setShowFeedback] = useState(false);
   const touchStartX = useRef(0);
   const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pageEntryTime = useRef(Date.now());
+
+  useEffect(() => {
+    const exId = exhibition.id;
+    if (isFeedbackSubmitted(exId)) return;
+
+    const triggerKey = TRIGGER_KEY(exId);
+    const hasTrigger = (() => { try { return !!localStorage.getItem(triggerKey); } catch { return false; } })();
+    if (hasTrigger) {
+      try { localStorage.removeItem(triggerKey); } catch {}
+      const timer = setTimeout(() => setShowFeedback(true), 600);
+      return () => clearTimeout(timer);
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'hidden') return;
+      const elapsed = Date.now() - pageEntryTime.current;
+      if (elapsed < 10_000) return;
+      if (!isFeedbackSubmitted(exId)) {
+        try { localStorage.setItem(triggerKey, '1'); } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [exhibition.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getTitle = useCallback((artworkId: string) =>
     translations.find(t => t.artwork_id === artworkId && t.language_code === lang)?.title ??
@@ -250,6 +278,14 @@ export default function WorksClient({ exhibition, artworks, translations, initia
       </section>
 
       <GalleryFooter lang={lang} />
+
+      {showFeedback && (
+        <FeedbackModal
+          exhibitionId={exhibition.id}
+          lang={lang}
+          onClose={() => setShowFeedback(false)}
+        />
+      )}
     </div>
   );
 }
