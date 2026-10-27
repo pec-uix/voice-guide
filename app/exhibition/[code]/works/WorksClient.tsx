@@ -7,6 +7,11 @@ import type { LanguageCode } from '@/lib/types';
 import GalleryHeader from '@/components/GalleryHeader';
 import GalleryFooter from '@/components/GalleryFooter';
 
+function cdnUrl(url: string | null, transform: string): string {
+  if (!url) return '';
+  return url.replace('/upload/', `/upload/${transform}/`);
+}
+
 interface Exhibition { id: string; code: string; name: string; }
 interface ArtworkRow { id: string; code: string; cover_image_url: string | null; artist: string | null; year: string | null; }
 interface TranslationRow { artwork_id: string; language_code: string; title: string; }
@@ -116,7 +121,7 @@ export default function WorksClient({ exhibition, artworks, translations, initia
                 }}
               >
                 {a.cover_image_url ? (
-                  <img src={a.cover_image_url} alt={getTitle(a.id)} className="w-full h-full object-cover" />
+                  <img src={cdnUrl(a.cover_image_url, 'w_800,c_fill,f_auto,q_auto')} alt={getTitle(a.id)} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-gradient-to-br from-stone-300 via-stone-200 to-amber-100" />
                 )}
@@ -192,7 +197,7 @@ export default function WorksClient({ exhibition, artworks, translations, initia
               <Link key={a.id} href={`/artwork/${a.code}?lang=${lang}`} className="group block">
                 <div className="w-full overflow-hidden rounded-sm shadow-sm" style={{ aspectRatio: '3/4' }}>
                   {a.cover_image_url ? (
-                    <img src={a.cover_image_url} alt={getTitle(a.id)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img src={cdnUrl(a.cover_image_url, 'w_400,h_533,c_fill,f_auto,q_auto')} alt={getTitle(a.id)} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                   ) : (
                     <div className="w-full h-full bg-stone-100 flex items-center justify-center">
                       <span className="text-stone-300 text-3xl">♪</span>
@@ -221,7 +226,7 @@ export default function WorksClient({ exhibition, artworks, translations, initia
                 <span className="text-xs lg:text-sm text-stone-300 w-6 lg:w-8 text-right flex-shrink-0">{String(idx + 1).padStart(2, '0')}</span>
                 <div className="w-10 h-10 lg:w-16 lg:h-16 flex-shrink-0 overflow-hidden rounded-sm bg-stone-100">
                   {a.cover_image_url ? (
-                    <img src={a.cover_image_url} alt="" className="w-full h-full object-cover" />
+                    <img src={cdnUrl(a.cover_image_url, 'w_128,h_128,c_fill,f_auto,q_auto')} alt="" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-stone-300 text-xs">♪</span>

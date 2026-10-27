@@ -41,6 +41,11 @@ interface Props {
 
 const TRIGGER_KEY = (id: string) => `vg_fb_trigger_${id}`;
 
+function cdnUrl(url: string | null, transform: string): string {
+  if (!url) return '';
+  return url.replace('/upload/', `/upload/${transform}/`);
+}
+
 export function setFeedbackTrigger(exhibitionId: string) {
   try { localStorage.setItem(TRIGGER_KEY(exhibitionId), '1'); } catch {}
 }
@@ -104,10 +109,10 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
               <>
                 <picture className="block lg:absolute lg:inset-0 lg:w-full lg:h-full">
                   {exhibition.mobile_cover_image_url && (
-                    <source media="(max-width: 1023px)" srcSet={exhibition.mobile_cover_image_url} />
+                    <source media="(max-width: 1023px)" srcSet={cdnUrl(exhibition.mobile_cover_image_url, 'w_800,f_auto,q_auto')} />
                   )}
                   <img
-                    src={exhibition.cover_image_url ?? exhibition.mobile_cover_image_url ?? ''}
+                    src={cdnUrl(exhibition.cover_image_url ?? exhibition.mobile_cover_image_url, 'w_1400,f_auto,q_auto')}
                     alt={exhibition.name}
                     className="w-full h-auto lg:h-full object-cover transition-transform duration-500 hover:scale-[1.02]"
                   />

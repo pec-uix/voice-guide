@@ -9,6 +9,11 @@ import { setFeedbackTrigger } from '@/app/exhibition/[code]/ExhibitionClient';
 import GalleryHeader from '@/components/GalleryHeader';
 import GalleryFooter from '@/components/GalleryFooter';
 
+function cdnUrl(url: string | null | undefined, transform: string): string {
+  if (!url) return '';
+  return url.replace('/upload/', `/upload/${transform}/`);
+}
+
 interface SegmentWithTexts {
   id: string;
   segment_index: number;
@@ -285,7 +290,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
         {/* Image */}
         <div className="rounded-sm shadow-md mb-4 bg-stone-50" style={{ aspectRatio: '3/2' }}>
           {artwork.cover_image_url ? (
-            <img src={artwork.cover_image_url} alt={translation?.title ?? artwork.code} className="w-full h-full object-contain"/>
+            <img src={cdnUrl(artwork.cover_image_url, 'w_800,f_auto,q_auto')} alt={translation?.title ?? artwork.code} className="w-full h-full object-contain"/>
           ) : (
             <div className="w-full h-full flex items-center justify-center"><span className="text-stone-300 text-4xl">♪</span></div>
           )}
@@ -318,7 +323,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           {/* Left: sticky image */}
           <div className="sticky top-8">
             {artwork.cover_image_url ? (
-              <img src={artwork.cover_image_url} alt={translation?.title ?? artwork.code}
+              <img src={cdnUrl(artwork.cover_image_url, 'w_800,f_auto,q_auto')} alt={translation?.title ?? artwork.code}
                 className="w-full object-cover shadow-lg" style={{ aspectRatio: '3/4' }}/>
             ) : (
               <div className="w-full bg-stone-100 flex items-center justify-center shadow-lg" style={{ aspectRatio: '3/4' }}>
