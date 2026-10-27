@@ -184,7 +184,7 @@ schema.sql                     # 資料庫 schema，改動時同步更新這份
 
 ## 7. 帳號歸屬與費用規劃
 
-- Repo：https://github.com/pec-uix/voice-guide.git ，本機工作目錄 `/Users/minashih/voice-guide`
+- Repo：https://github.com/pec-uix/voice-guide.git ，本機工作目錄 `/Users/minashih/專案/個人/voice-guide`
 - **開發階段先用開發者自己的帳號**（Cloudflare、Neon、Google Cloud、GitHub 都一樣，Gemini API 金鑰在 Google AI Studio 免費申請，同樣不用綁卡），不用等展覽方一起弄，申請步驟見 `account-setup-guide.md`
 - **正式交接前**，再把這些帳號的擁有權轉移給展覽方，或邀請展覽方帳號加入、把開發者降為協作者——這是交接階段（階段 7）要做的事，不是開發一開始就要卡住的條件
 - **Google Cloud 專案（僅用於 OAuth 登入）**：不需要開通付費的 Blaze 方案（OAuth 登入本身完全免費），維持「測試中」狀態即可，不用送審
@@ -204,13 +204,13 @@ schema.sql                     # 資料庫 schema，改動時同步更新這份
 
 ## 9. 目前進度
 
-- [ ] 階段 0：開帳號、建 repo
-- [ ] 階段 1：資料模型
-- [ ] 階段 2：API 層
-- [ ] 階段 3：前台導覽頁
-- [ ] 階段 4：後台管理
-- [ ] 階段 5：數據追蹤
-- [ ] 階段 6：部署測試
+- [x] 階段 0：開帳號、建 repo
+- [x] 階段 1：資料模型
+- [x] 階段 2：API 層
+- [x] 階段 3：前台導覽頁
+- [x] 階段 4：後台管理
+- [x] 階段 5：數據追蹤
+- [ ] 階段 6：部署測試（已部署至 https://voice-guide.pec-uix.workers.dev，待現場實地測試：實機掃碼、iOS Safari 播放、Wi-Fi 環境、QR Code 實際尺寸與高度）
 - [ ] 階段 7：交接
 
 > 每完成一個階段就勾起來，並簡短記錄下一步要做什麼，方便中斷後接續。
