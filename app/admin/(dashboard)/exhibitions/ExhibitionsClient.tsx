@@ -491,12 +491,6 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                 {l === 'zh' ? '中文' : 'English'}
               </button>
             ))}
-            {editId && (
-              <button type="button" onClick={handleTranslate} disabled={translating}
-                className="ml-auto text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50">
-                {translating ? '翻譯中…' : '✦ AI 翻譯中文 → 英文'}
-              </button>
-            )}
           </div>
 
           {formLang === 'zh' ? (
