@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
           if (!aw.productId) return { ...aw, title_en: null };
           const enHtml = await fetchHtml(`https://www.uniart.com.tw/en/products/${aw.productId}`);
           const enProduct = enHtml ? parseNuxtProductPage(enHtml) : null;
-          return { ...aw, title_en: enProduct?.title ?? null };
+          return { ...aw, title_en: enProduct?.title ?? null, description_en: enProduct?.description ?? null };
         })
       );
 

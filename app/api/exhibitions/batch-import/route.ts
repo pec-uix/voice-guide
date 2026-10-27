@@ -6,6 +6,7 @@ interface ArtworkInput {
   productId?: number;
   title: string;
   title_en?: string | null;
+  description_en?: string | null;
   artist?: string;
   year?: string;
   description?: string;
@@ -83,12 +84,18 @@ export async function POST(req: NextRequest) {
 
     // Single INSERT for en translations (only artworks with an English title)
     const enRows = validArtworks
-      .map((aw, i) => ({ id: artworkIds[i], title_en: aw.title_en?.trim() ?? null, purchaseUrl: aw.purchaseUrl ?? null }))
+      .map((aw, i) => ({
+        id: artworkIds[i],
+        title_en: aw.title_en?.trim() ?? null,
+        description_en: aw.description_en ?? null,
+        purchaseUrl: aw.purchaseUrl ?? null,
+      }))
       .filter(r => r.title_en);
 
     if (enRows.length > 0) {
       const enIds    = enRows.map(r => r.id);
       const enTitles = enRows.map(r => r.title_en!);
+      const enDescs  = enRows.map(r => r.description_en);
       const enUrls   = enRows.map(r =>
         r.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/') ?? null
       );
@@ -99,7 +106,7 @@ export async function POST(req: NextRequest) {
           unnest(${enIds}::uuid[]),
           'en',
           unnest(${enTitles}::text[]),
-          null,
+          unnest(${enDescs}::text[]),
           unnest(${enUrls}::text[]),
           true
       `;

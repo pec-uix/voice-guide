@@ -11,7 +11,7 @@ export default async function ArtworkEditPage({ params }: Props) {
   if (!rows[0]) notFound();
   const artwork = rows[0];
 
-  const [translations, segments, exhibitions] = await Promise.all([
+  const [translations, segments, exhibitions, prevNext] = await Promise.all([
     sql`SELECT * FROM artwork_translations WHERE artwork_id = ${id} ORDER BY language_code`,
     sql`
       SELECT s.id, s.segment_index, s.start_time::float AS start_time, s.end_time::float AS end_time,
@@ -29,6 +29,17 @@ export default async function ArtworkEditPage({ params }: Props) {
       ORDER BY s.segment_index
     `,
     sql`SELECT id, name FROM exhibitions ORDER BY created_at DESC`,
+    sql`
+      SELECT
+        (SELECT id FROM artworks
+          WHERE exhibition_id IS NOT DISTINCT FROM ${artwork.exhibition_id}
+            AND created_at < ${artwork.created_at}
+          ORDER BY created_at DESC LIMIT 1) AS prev_id,
+        (SELECT id FROM artworks
+          WHERE exhibition_id IS NOT DISTINCT FROM ${artwork.exhibition_id}
+            AND created_at > ${artwork.created_at}
+          ORDER BY created_at ASC LIMIT 1) AS next_id
+    `,
   ]);
 
   return (
@@ -37,6 +48,8 @@ export default async function ArtworkEditPage({ params }: Props) {
       translations={translations as never}
       segments={segments as never}
       exhibitions={exhibitions as never}
+      prevId={(prevNext[0]?.prev_id as string) ?? null}
+      nextId={(prevNext[0]?.next_id as string) ?? null}
     />
   );
 }

@@ -16,6 +16,8 @@ interface Props {
   translations: Translation[];
   segments: Segment[];
   exhibitions: Exhibition[];
+  prevId: string | null;
+  nextId: string | null;
 }
 
 const LANG_LABEL: Record<string, string> = { 'zh-TW': '中文', en: 'English' };
@@ -79,7 +81,7 @@ function LangTabs({ value, onChange, pendingLangs = [] }: {
   );
 }
 
-export default function ArtworkEditor({ artwork, translations, segments, exhibitions }: Props) {
+export default function ArtworkEditor({ artwork, translations, segments, exhibitions, prevId, nextId }: Props) {
   const router = useRouter();
   const [showQR, setShowQR] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -412,10 +414,26 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   return (
     <div className={isDirty ? 'pb-20' : ''}>
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-stone-500 mb-4">
-        <Link href="/admin/artworks" className="hover:text-stone-800">作品管理</Link>
-        <span>/</span>
-        <span className="text-stone-900 font-medium">{tForms['zh-TW']?.title || artwork.code}</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 text-sm text-stone-500">
+          <Link href="/admin/artworks" className="hover:text-stone-800">作品管理</Link>
+          <span>/</span>
+          <span className="text-stone-900 font-medium">{tForms['zh-TW']?.title || artwork.code}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <a
+            href={prevId ? `/admin/artworks/${prevId}` : undefined}
+            className={`px-3 py-1.5 text-sm rounded-lg border border-stone-200 transition-colors ${prevId ? 'text-stone-600 hover:text-stone-900 hover:border-stone-400' : 'text-stone-300 pointer-events-none'}`}
+          >
+            ← 上一幅
+          </a>
+          <a
+            href={nextId ? `/admin/artworks/${nextId}` : undefined}
+            className={`px-3 py-1.5 text-sm rounded-lg border border-stone-200 transition-colors ${nextId ? 'text-stone-600 hover:text-stone-900 hover:border-stone-400' : 'text-stone-300 pointer-events-none'}`}
+          >
+            下一幅 →
+          </a>
+        </div>
       </div>
 
       {/* Page header */}
