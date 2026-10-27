@@ -50,7 +50,7 @@ export default function WorksClient({ exhibition, artworks, translations, initia
     const onVisibilityChange = () => {
       if (document.visibilityState !== 'hidden') return;
       const elapsed = Date.now() - pageEntryTime.current;
-      if (elapsed < 10_000) return;
+      if (elapsed < 60_000) return;
       if (!isFeedbackSubmitted(exId)) {
         try { localStorage.setItem(triggerKey, '1'); } catch {}
       }
