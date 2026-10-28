@@ -409,6 +409,9 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   });
 
   const currentAudioUrl = audioUrls[lang] ?? null;
+  const currentAudioPreviewUrl = currentAudioUrl?.includes('cloudinary.com')
+    ? currentAudioUrl.replace('/upload/', '/upload/e_trim/')
+    : currentAudioUrl;
   const hasCurrentTranscript = lang === 'zh-TW' ? segText.trim().length > 0 : enSegText.trim().length > 0;
 
   return (
@@ -591,7 +594,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
             {/* Audio area */}
             {currentAudioUrl ? (
               <div className="mb-5">
-                <audio key={currentAudioUrl} controls src={currentAudioUrl} className="w-full mb-1.5" />
+                <audio key={currentAudioPreviewUrl} controls src={currentAudioPreviewUrl ?? undefined} className="w-full mb-1.5" />
                 <div className="flex gap-3 items-center">
                   <label className="cursor-pointer text-xs text-stone-500 hover:text-stone-700">
                     重新上傳
