@@ -1,0 +1,68 @@
+runConfig:
+  runtime: nodejs20
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: DATABASE_URL
+    secret: DATABASE_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: CLOUDINARY_CLOUD_NAME
+    secret: CLOUDINARY_CLOUD_NAME
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: CLOUDINARY_API_KEY
+    secret: CLOUDINARY_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: CLOUDINARY_API_SECRET
+    secret: CLOUDINARY_API_SECRET
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: GROQ_API_KEY
+    secret: GROQ_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: GOOGLE_CLIENT_ID
+    secret: GOOGLE_CLIENT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXTAUTH_SECRET
+    secret: NEXTAUTH_SECRET
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXTAUTH_URL
+    secret: NEXTAUTH_URL
+    availability:
+      - BUILD
+      - RUNTIME
