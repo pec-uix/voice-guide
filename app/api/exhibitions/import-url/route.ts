@@ -26,12 +26,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Derive English URL for uniart topics (insert /en/ before /topics/)
-    const enUrl = url.replace(/^(https?:\/\/[^/]+)(\/topics\/)/, '$1/en$2');
-    const isUniart = enUrl !== url;
+    // Normalize to Chinese URL (remove /en/ if present), then derive English URL
+    const chUrl = url.replace(/^(https?:\/\/[^/]+)\/en(\/topics\/)/, '$1$2');
+    const enUrl = chUrl.replace(/^(https?:\/\/[^/]+)(\/topics\/)/, '$1/en$2');
+    const isUniart = enUrl !== chUrl;
 
     const [html, enHtmlMaybe] = await Promise.all([
-      fetchHtml(url),
+      fetchHtml(chUrl),
       isUniart ? fetchHtml(enUrl) : Promise.resolve(null),
     ]);
 

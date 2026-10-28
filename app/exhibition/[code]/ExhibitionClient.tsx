@@ -12,7 +12,9 @@ interface Exhibition {
   id: string;
   code: string;
   name: string;
+  name_en: string | null;
   description: string | null;
+  description_en: string | null;
   review_url: string | null;
   cover_image_url: string | null;
   mobile_cover_image_url: string | null;
@@ -126,7 +128,7 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
 
         {/* Description + CTA below banner */}
         <div className="py-8 lg:py-10">
-          {exhibition.description && (
+          {(lang === 'en' ? (exhibition.description_en || exhibition.description) : exhibition.description) && (
             <div className="mb-8">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-1 self-stretch bg-violet-600 rounded-full" />
@@ -135,7 +137,7 @@ export default function ExhibitionClient({ exhibition, artworks, translations, i
                 </h2>
               </div>
               <p className="text-stone-600 text-sm lg:text-base leading-loose whitespace-pre-wrap">
-                {exhibition.description}
+                {lang === 'en' ? (exhibition.description_en || exhibition.description) : exhibition.description}
               </p>
             </div>
           )}
