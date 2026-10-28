@@ -274,14 +274,14 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
           <Link href={`/artwork/${prevCode}?lang=${lang}`} aria-label="上一幅"
             className="w-12 h-12 rounded-full bg-stone-800 text-white flex flex-col items-center justify-center shadow-lg hover:bg-stone-600 transition-colors gap-0.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18 15l-6-6-6 6"/></svg>
-            <span className="text-[9px] tracking-wide leading-none">上一幅</span>
+            <span className="text-[9px] tracking-wide leading-none">{lang === 'zh-TW' ? '上一幅' : 'Prev'}</span>
           </Link>
         )}
         {nextCode && (
           <Link href={`/artwork/${nextCode}?lang=${lang}`} aria-label="下一幅"
             className="w-12 h-12 rounded-full bg-stone-800 text-white flex flex-col items-center justify-center shadow-lg hover:bg-stone-600 transition-colors gap-0.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6"/></svg>
-            <span className="text-[9px] tracking-wide leading-none">下一幅</span>
+            <span className="text-[9px] tracking-wide leading-none">{lang === 'zh-TW' ? '下一幅' : 'Next'}</span>
           </Link>
         )}
         <button onClick={() => handleLangChange(lang === 'zh-TW' ? 'en' : 'zh-TW')} aria-label="切換語言"
