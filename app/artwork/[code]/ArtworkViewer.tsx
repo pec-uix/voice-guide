@@ -293,6 +293,18 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
             {lang === 'zh-TW' ? 'EN' : '中文'}
           </span>
         </button>
+        {exhibitionCode && (
+          <Link href={`/exhibition/${exhibitionCode}/works?lang=${lang}`} aria-label="作品目錄"
+            className="w-12 h-12 rounded-full bg-stone-100 border border-stone-200 text-stone-700 flex flex-col items-center justify-center shadow-lg hover:bg-stone-200 transition-colors gap-0.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            <span className="text-[9px] tracking-wide leading-none font-medium">
+              {lang === 'zh-TW' ? '目錄' : 'List'}
+            </span>
+          </Link>
+        )}
       </div>
 
       {/* ── MOBILE ── */}
