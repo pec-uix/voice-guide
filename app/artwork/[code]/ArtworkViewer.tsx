@@ -62,10 +62,14 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
     translations.find((tr) => tr.language_code === lang) ??
     translations.find((tr) => tr.language_code === 'zh-TW');
 
-  const audioUrl =
+  const rawAudioUrl =
     translations.find((tr) => tr.language_code === lang)?.audio_url ??
     translations.find((tr) => tr.language_code === 'zh-TW')?.audio_url ??
     null;
+  // e_trim removes leading/trailing silence at serve-time without re-uploading
+  const audioUrl = rawAudioUrl?.includes('cloudinary.com')
+    ? rawAudioUrl.replace('/upload/', '/upload/e_trim/')
+    : rawAudioUrl;
 
   const purchaseUrl = translation?.purchase_url ?? null;
 
@@ -137,26 +141,30 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
       ? (lang === 'en' ? 'Audio Guide' : '導覽音頻')
       : (lang === 'en' ? 'Artist Statement' : '作品理念');
 
-  /* ── Player block ── */
+  /* ── Audio element — always mounted so tab-switching doesn't stop playback ── */
+  const audioElement = audioUrl ? (
+    <audio
+      ref={audioRef}
+      src={audioUrl}
+      onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+      onDurationChange={() => setDuration(audioRef.current?.duration ?? 0)}
+      onPlay={() => setIsPlaying(true)}
+      onPause={() => setIsPlaying(false)}
+      onEnded={() => {
+        setIsPlaying(false);
+        recordEvent('complete');
+        if (isLastInExhibition && exhibitionId) setFeedbackTrigger(exhibitionId);
+      }}
+      onError={() => setAudioError(t('audioError', lang))}
+      preload="metadata"
+    />
+  ) : null;
+
+  /* ── Player controls (UI only, no audio element) ── */
   const playerBlock = (
     <div>
       {audioUrl ? (
         <>
-          <audio
-            ref={audioRef}
-            src={audioUrl}
-            onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
-            onDurationChange={() => setDuration(audioRef.current?.duration ?? 0)}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => {
-              setIsPlaying(false);
-              recordEvent('complete');
-              if (isLastInExhibition && exhibitionId) setFeedbackTrigger(exhibitionId);
-            }}
-            onError={() => setAudioError(t('audioError', lang))}
-            preload="metadata"
-          />
           {audioError ? (
             <p className="text-red-400 text-sm">{audioError}</p>
           ) : (
@@ -255,6 +263,8 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Audio element always mounted — tab-switching must not unmount it */}
+      <div className="hidden">{audioElement}</div>
 
       <GalleryHeader lang={lang} onLangChange={handleLangChange} logoHref={logoHref} />
 
