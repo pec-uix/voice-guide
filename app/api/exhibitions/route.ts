@@ -1,12 +1,11 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const rows = await sql`
-      SELECT * FROM exhibitions ORDER BY created_at DESC
-    `;
+    const snap = await db.collection('exhibitions').orderBy('created_at', 'desc').get();
+    const rows = snap.docs.map(d => d.data());
     return NextResponse.json({ data: rows });
   } catch (err) {
     console.error(err);
@@ -26,17 +25,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'code and name are required' }, { status: 400 });
     }
 
-    const [row] = await sql`
-      INSERT INTO exhibitions (code, name, name_en, description, description_en, review_url, cover_image_url, mobile_cover_image_url)
-      VALUES (${code.trim()}, ${name.trim()}, ${name_en ?? null}, ${description ?? null}, ${description_en ?? null}, ${review_url ?? null}, ${cover_image_url ?? null}, ${mobile_cover_image_url ?? null})
-      RETURNING *
-    `;
-    return NextResponse.json({ data: row }, { status: 201 });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('unique') && msg.includes('code')) {
+    const existing = await db.collection('exhibitions').where('code', '==', code.trim()).limit(1).get();
+    if (!existing.empty) {
       return NextResponse.json({ error: 'Exhibition code already exists' }, { status: 409 });
     }
+
+    const ref = db.collection('exhibitions').doc();
+    const row = {
+      id: ref.id,
+      code: code.trim(),
+      name: name.trim(),
+      name_en: name_en ?? null,
+      description: description ?? null,
+      description_en: description_en ?? null,
+      review_url: review_url ?? null,
+      cover_image_url: cover_image_url ?? null,
+      mobile_cover_image_url: mobile_cover_image_url ?? null,
+      created_at: new Date().toISOString(),
+    };
+    await ref.set(row);
+    return NextResponse.json({ data: row }, { status: 201 });
+  } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to create exhibition' }, { status: 500 });
   }

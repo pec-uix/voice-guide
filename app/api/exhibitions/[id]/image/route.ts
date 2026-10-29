@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { uploadImage } from '@/lib/storage';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -11,8 +11,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    const [exhibition] = await sql`SELECT id FROM exhibitions WHERE id = ${id}`;
-    if (!exhibition) return NextResponse.json({ error: 'Exhibition not found' }, { status: 404 });
+    const exhibitionDoc = await db.collection('exhibitions').doc(id).get();
+    if (!exhibitionDoc.exists) return NextResponse.json({ error: 'Exhibition not found' }, { status: 404 });
 
     const formData = await req.formData();
     const file = formData.get('image') as File | null;
@@ -32,10 +32,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: result.error }, { status: 503 });
     }
 
-    const [row] = await sql`
-      UPDATE exhibitions SET cover_image_url = ${result.url} WHERE id = ${id} RETURNING *
-    `;
-    return NextResponse.json({ data: { cover_image_url: result.url, exhibition: row } });
+    await db.collection('exhibitions').doc(id).update({ cover_image_url: result.url });
+    const updatedDoc = await db.collection('exhibitions').doc(id).get();
+    return NextResponse.json({ data: { cover_image_url: result.url, exhibition: updatedDoc.data() } });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 });

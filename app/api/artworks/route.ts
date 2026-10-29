@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -8,20 +8,17 @@ export async function GET(req: NextRequest) {
   const exhibitionId = searchParams.get('exhibition_id');
 
   try {
-    const rows = exhibitionId
-      ? await sql`
-          SELECT a.*, t.title, t.audio_url, t.is_reviewed
-          FROM artworks a
-          LEFT JOIN artwork_translations t ON t.artwork_id = a.id AND t.language_code = 'zh-TW'
-          WHERE a.exhibition_id = ${exhibitionId}
-          ORDER BY a.created_at ASC
-        `
-      : await sql`
-          SELECT a.*, t.title, t.audio_url, t.is_reviewed
-          FROM artworks a
-          LEFT JOIN artwork_translations t ON t.artwork_id = a.id AND t.language_code = 'zh-TW'
-          ORDER BY a.created_at DESC
-        `;
+    const artworksSnap = exhibitionId
+      ? await db.collection('artworks').where('exhibition_id', '==', exhibitionId).orderBy('created_at', 'asc').get()
+      : await db.collection('artworks').orderBy('created_at', 'desc').get();
+
+    const rows = await Promise.all(artworksSnap.docs.map(async (doc) => {
+      const artwork = doc.data();
+      const tDoc = await db.collection('artworks').doc(doc.id).collection('translations').doc('zh-TW').get();
+      const t = tDoc.exists ? tDoc.data()! : {};
+      return { ...artwork, title: t.title ?? null, audio_url: t.audio_url ?? null, is_reviewed: t.is_reviewed ?? null };
+    }));
+
     return NextResponse.json({ data: rows });
   } catch (err) {
     console.error(err);
@@ -35,67 +32,64 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { exhibition_id, code, cover_image_url, artist, year, title, description, purchase_url } =
-      body;
+    const { exhibition_id, code, cover_image_url, artist, year, title, description, purchase_url } = body;
 
     if (!code?.trim() || !title?.trim()) {
       return NextResponse.json({ error: 'code and title are required' }, { status: 400 });
     }
 
-    // 1. Create artwork
-    const [artwork] = await sql`
-      INSERT INTO artworks (exhibition_id, code, cover_image_url, artist, year)
-      VALUES (
-        ${exhibition_id ?? null},
-        ${code.trim()},
-        ${cover_image_url ?? null},
-        ${artist ?? null},
-        ${year ?? null}
-      )
-      RETURNING *
-    `;
+    const codeCheck = await db.collection('artworks').where('code', '==', code.trim()).limit(1).get();
+    if (!codeCheck.empty) {
+      return NextResponse.json({ error: 'Artwork code already exists' }, { status: 409 });
+    }
 
-    // 2. Create zh-TW translation (is_reviewed=true — source language)
-    const [zhTranslation] = await sql`
-      INSERT INTO artwork_translations
-        (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-      VALUES
-        (${artwork.id}, 'zh-TW', ${title.trim()}, ${description ?? null}, ${purchase_url ?? null}, true)
-      RETURNING *
-    `;
+    const now = new Date().toISOString();
+    const artworkRef = db.collection('artworks').doc();
+    const artwork = {
+      id: artworkRef.id,
+      exhibition_id: exhibition_id ?? null,
+      code: code.trim(),
+      cover_image_url: cover_image_url ?? null,
+      artist: artist ?? null,
+      year: year ?? null,
+      created_at: now,
+      updated_at: now,
+    };
+    await artworkRef.set(artwork);
 
-    // 3. Auto-translate to en (always create EN row even if Gemini fails)
+    const zhTranslation = {
+      title: title.trim(),
+      description: description ?? null,
+      purchase_url: purchase_url ?? null,
+      audio_url: null,
+      is_reviewed: true,
+      created_at: now,
+      updated_at: now,
+    };
+    await artworkRef.collection('translations').doc('zh-TW').set(zhTranslation);
+
     const [titleT, descT] = await Promise.all([
       title ? translateBoth(title) : Promise.resolve({ en: null, failed: false }),
       description ? translateBoth(description) : Promise.resolve({ en: null, failed: false }),
     ]);
 
     const translationWarning = titleT.failed;
-    const [enT] = await sql`
-      INSERT INTO artwork_translations
-        (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-      VALUES
-        (${artwork.id}, 'en', ${titleT.en ?? ''}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
-      ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-        title = EXCLUDED.title, description = EXCLUDED.description, updated_at = now()
-      RETURNING *
-    `;
+    const enT = {
+      title: titleT.en ?? '',
+      description: descT.en ?? null,
+      purchase_url: purchase_url ?? null,
+      audio_url: null,
+      is_reviewed: false,
+      created_at: now,
+      updated_at: now,
+    };
+    await artworkRef.collection('translations').doc('en').set(enT);
 
     return NextResponse.json(
-      {
-        data: {
-          ...artwork,
-          translations: [zhTranslation, enT],
-        },
-        translation_warning: translationWarning,
-      },
+      { data: { ...artwork, translations: [zhTranslation, enT] }, translation_warning: translationWarning },
       { status: 201 },
     );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('unique') && msg.includes('code')) {
-      return NextResponse.json({ error: 'Artwork code already exists' }, { status: 409 });
-    }
+  } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to create artwork' }, { status: 500 });
   }

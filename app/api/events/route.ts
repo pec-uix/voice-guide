@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 const VALID_EVENT_TYPES = ['scan', 'play', 'pause', 'complete', 'click_purchase', 'click_review'];
@@ -21,18 +21,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [row] = await sql`
-      INSERT INTO events (artwork_id, exhibition_id, language_code, event_type, source)
-      VALUES (
-        ${artwork_id ?? null},
-        ${exhibition_id ?? null},
-        ${language_code ?? null},
-        ${event_type},
-        ${source ?? null}
-      )
-      RETURNING *
-    `;
-    return NextResponse.json({ data: row }, { status: 201 });
+    const ref = db.collection('events').doc();
+    const now = new Date().toISOString();
+    const event = {
+      id: ref.id,
+      artwork_id: artwork_id ?? null,
+      exhibition_id: exhibition_id ?? null,
+      language_code: language_code ?? null,
+      event_type,
+      source: source ?? null,
+      created_at: now,
+    };
+    await ref.set(event);
+    return NextResponse.json({ data: event }, { status: 201 });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to record event' }, { status: 500 });

@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { auth } from '@/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -34,93 +34,75 @@ export async function POST(req: NextRequest) {
   if (!name?.trim()) return NextResponse.json({ error: '展覽名稱為必填' }, { status: 400 });
 
   try {
-    const [exhibition] = await sql`
-      INSERT INTO exhibitions (code, name, name_en, description, description_en, cover_image_url, mobile_cover_image_url)
-      VALUES (${code.trim()}, ${name.trim()}, ${name_en ?? null}, ${description ?? null}, ${description_en ?? null}, ${cover_image_url ?? null}, ${mobile_cover_image_url ?? null})
-      RETURNING *
-    `;
+    const existing = await db.collection('exhibitions').where('code', '==', code.trim()).limit(1).get();
+    if (!existing.empty) {
+      return NextResponse.json({ error: '展覽代碼已存在，請換一個' }, { status: 409 });
+    }
+
+    const exRef = db.collection('exhibitions').doc();
+    const exhibition = {
+      id: exRef.id,
+      code: code.trim(),
+      name: name.trim(),
+      name_en: name_en ?? null,
+      description: description ?? null,
+      description_en: description_en ?? null,
+      cover_image_url: cover_image_url ?? null,
+      mobile_cover_image_url: mobile_cover_image_url ?? null,
+      created_at: new Date().toISOString(),
+    };
+    await exRef.set(exhibition);
 
     const validArtworks = (artworks ?? []).filter(aw => aw.title?.trim());
     if (validArtworks.length === 0) {
       return NextResponse.json({ data: { exhibition, artworksCreated: 0 } }, { status: 201 });
     }
 
-    // Prepare arrays for bulk INSERT via unnest() — 1 SQL call instead of N
-    const artworkCodes = validArtworks.map((aw, i) => `${code.trim()}-${aw.productId ?? i + 1}`);
-    const coverImages  = validArtworks.map(aw => aw.imageUrl  ?? null);
-    const artistNames  = validArtworks.map(aw => aw.artist    ?? null);
-    const years        = validArtworks.map(aw => aw.year      ?? null);
+    const now = new Date().toISOString();
+    await Promise.all(validArtworks.map(async (aw, i) => {
+      const artworkRef = db.collection('artworks').doc();
+      const artworkCode = `${code.trim()}-${aw.productId ?? i + 1}`;
+      const artwork = {
+        id: artworkRef.id,
+        exhibition_id: exRef.id,
+        code: artworkCode,
+        cover_image_url: aw.imageUrl ?? null,
+        artist: aw.artist ?? null,
+        year: aw.year ?? null,
+        created_at: now,
+        updated_at: now,
+      };
+      await artworkRef.set(artwork);
 
-    // Single INSERT for all artworks
-    const artworkRows = await sql`
-      INSERT INTO artworks (exhibition_id, code, cover_image_url, artist, year)
-      SELECT
-        ${exhibition.id}::uuid,
-        unnest(${artworkCodes}::text[]),
-        unnest(${coverImages}::text[]),
-        unnest(${artistNames}::text[]),
-        unnest(${years}::text[])
-      RETURNING id, code
-    `;
+      await artworkRef.collection('translations').doc('zh-TW').set({
+        title: aw.title.trim(),
+        description: aw.description ?? null,
+        purchase_url: aw.purchaseUrl ?? null,
+        audio_url: null,
+        is_reviewed: true,
+        created_at: now,
+        updated_at: now,
+      });
 
-    // artworkRows is in the same order as validArtworks (unnest preserves order)
-    const artworkIds = (artworkRows as { id: string }[]).map(r => r.id);
-
-    // Single INSERT for all zh-TW translations
-    const zhTitles  = validArtworks.map(aw => aw.title.trim());
-    const zhDescs   = validArtworks.map(aw => aw.description ?? null);
-    const zhUrls    = validArtworks.map(aw => aw.purchaseUrl ?? null);
-
-    await sql`
-      INSERT INTO artwork_translations (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-      SELECT
-        unnest(${artworkIds}::uuid[]),
-        'zh-TW',
-        unnest(${zhTitles}::text[]),
-        unnest(${zhDescs}::text[]),
-        unnest(${zhUrls}::text[]),
-        true
-    `;
-
-    // Single INSERT for en translations (only artworks with an English title)
-    const enRows = validArtworks
-      .map((aw, i) => ({
-        id: artworkIds[i],
-        title_en: aw.title_en?.trim() ?? null,
-        description_en: aw.description_en ?? null,
-        purchaseUrl: aw.purchaseUrl ?? null,
-      }))
-      .filter(r => r.title_en);
-
-    if (enRows.length > 0) {
-      const enIds    = enRows.map(r => r.id);
-      const enTitles = enRows.map(r => r.title_en!);
-      const enDescs  = enRows.map(r => r.description_en);
-      const enUrls   = enRows.map(r =>
-        r.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/') ?? null
-      );
-
-      await sql`
-        INSERT INTO artwork_translations (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-        SELECT
-          unnest(${enIds}::uuid[]),
-          'en',
-          unnest(${enTitles}::text[]),
-          unnest(${enDescs}::text[]),
-          unnest(${enUrls}::text[]),
-          true
-      `;
-    }
+      if (aw.title_en?.trim()) {
+        const enPurchaseUrl = aw.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/') ?? null;
+        await artworkRef.collection('translations').doc('en').set({
+          title: aw.title_en.trim(),
+          description: aw.description_en ?? null,
+          purchase_url: enPurchaseUrl,
+          audio_url: null,
+          is_reviewed: true,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+    }));
 
     return NextResponse.json(
-      { data: { exhibition, artworksCreated: artworkRows.length } },
+      { data: { exhibition, artworksCreated: validArtworks.length } },
       { status: 201 },
     );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('unique') && msg.includes('code')) {
-      return NextResponse.json({ error: '展覽代碼已存在，請換一個' }, { status: 409 });
-    }
+  } catch (err) {
     console.error(err);
     return NextResponse.json({ error: '建立失敗' }, { status: 500 });
   }

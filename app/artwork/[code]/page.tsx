@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import ArtworkViewer from './ArtworkViewer';
@@ -20,12 +20,12 @@ type Props = {
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { code } = await params;
   const { lang = 'zh-TW' } = await searchParams;
-  const [row] = await sql`
-    SELECT t.title FROM artworks a
-    JOIN artwork_translations t ON t.artwork_id = a.id AND t.language_code = 'zh-TW'
-    WHERE a.code = ${code}
-  `;
-  return { title: row?.title ? `${row.title} | 語音導覽` : '語音導覽', alternates: { canonical: `/artwork/${code}?lang=${lang}` } };
+  const snap = await db.collection('artworks').where('code', '==', code).limit(1).get();
+  if (snap.empty) return { title: '語音導覽' };
+  const artworkId = snap.docs[0].id;
+  const transDoc = await db.collection('artworks').doc(artworkId).collection('translations').doc('zh-TW').get();
+  const title = transDoc.data()?.title;
+  return { title: title ? `${title} | 語音導覽` : '語音導覽', alternates: { canonical: `/artwork/${code}?lang=${lang}` } };
 }
 
 const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en'];
@@ -37,63 +37,45 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
     ? (lang as LanguageCode)
     : 'zh-TW';
 
-  const rows = await sql`SELECT * FROM artworks WHERE code = ${code}`;
-  if (!rows[0]) notFound();
-  const artwork = rows[0] as unknown as Artwork;
+  const snap = await db.collection('artworks').where('code', '==', code).limit(1).get();
+  if (snap.empty) notFound();
+  const artworkDoc = snap.docs[0];
+  const artwork = { id: artworkDoc.id, ...artworkDoc.data() } as unknown as Artwork;
 
   let exhibitionId: string | null = null;
   let exhibitionCode: string | null = null;
   let isLastInExhibition = false;
   let prevCode: string | null = null;
   let nextCode: string | null = null;
+
   if (artwork.exhibition_id) {
     exhibitionId = artwork.exhibition_id;
-    const [exRow] = await sql`SELECT code FROM exhibitions WHERE id = ${artwork.exhibition_id}`;
-    exhibitionCode = exRow?.code ?? null;
-    const [lastRow] = await sql`
-      SELECT id FROM artworks
-      WHERE exhibition_id = ${artwork.exhibition_id}
-      ORDER BY created_at DESC
-      LIMIT 1
-    `;
-    isLastInExhibition = lastRow?.id === artwork.id;
+    const exDoc = await db.collection('exhibitions').doc(artwork.exhibition_id).get();
+    exhibitionCode = exDoc.data()?.code ?? null;
 
-    const [navRow] = await sql`
-      WITH ordered AS (
-        SELECT id, code,
-          LAG(code)  OVER (ORDER BY created_at ASC) AS prev_code,
-          LEAD(code) OVER (ORDER BY created_at ASC) AS next_code
-        FROM artworks
-        WHERE exhibition_id = ${artwork.exhibition_id}
-      )
-      SELECT prev_code, next_code FROM ordered WHERE id = ${artwork.id}
-    `;
-    prevCode = navRow?.prev_code ?? null;
-    nextCode = navRow?.next_code ?? null;
+    const siblingSnap = await db.collection('artworks')
+      .where('exhibition_id', '==', artwork.exhibition_id)
+      .orderBy('created_at', 'asc')
+      .get();
+    const siblings = siblingSnap.docs;
+    const idx = siblings.findIndex(d => d.id === artwork.id);
+    if (idx !== -1) {
+      isLastInExhibition = idx === siblings.length - 1;
+      prevCode = idx > 0 ? (siblings[idx - 1].data().code ?? null) : null;
+      nextCode = idx < siblings.length - 1 ? (siblings[idx + 1].data().code ?? null) : null;
+    }
   }
 
-  const translations = (await sql`
-    SELECT * FROM artwork_translations WHERE artwork_id = ${artwork.id}
-  `) as unknown as ArtworkTranslation[];
+  const translationsSnap = await db.collection('artworks').doc(artwork.id).collection('translations').get();
+  const translations = translationsSnap.docs.map(d => ({ language_code: d.id, ...d.data() })) as unknown as ArtworkTranslation[];
 
-  const segments = (await sql`
-    SELECT
-      s.id, s.segment_index,
-      s.start_time::float AS start_time,
-      s.end_time::float   AS end_time,
-      COALESCE(
-        json_agg(
-          json_build_object('language_code', t.language_code, 'text', t.text)
-          ORDER BY t.language_code
-        ) FILTER (WHERE t.id IS NOT NULL),
-        '[]'
-      ) AS texts
-    FROM transcript_segments s
-    LEFT JOIN transcript_segment_texts t ON t.segment_id = s.id
-    WHERE s.artwork_id = ${artwork.id}
-    GROUP BY s.id
-    ORDER BY s.segment_index
-  `) as unknown as SegmentWithTexts[];
+  const segsSnap = await db.collection('artworks').doc(artwork.id).collection('transcript_segments').orderBy('segment_index').get();
+  const segments = await Promise.all(segsSnap.docs.map(async (segDoc) => {
+    const seg = segDoc.data();
+    const textsSnap = await db.collection('artworks').doc(artwork.id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+    const texts = textsSnap.docs.map(t => ({ language_code: t.id, ...t.data() }));
+    return { ...seg, texts };
+  })) as unknown as SegmentWithTexts[];
 
   return (
     <ArtworkViewer

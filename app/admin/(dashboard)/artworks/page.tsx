@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import ArtworksClient from './ArtworksClient';
 
 type Props = { searchParams: Promise<{ exhibition_id?: string }> };
@@ -6,26 +6,37 @@ type Props = { searchParams: Promise<{ exhibition_id?: string }> };
 export default async function ArtworksPage({ searchParams }: Props) {
   const { exhibition_id } = await searchParams;
 
-  const exhibitions = await sql`SELECT id, code, name FROM exhibitions ORDER BY created_at DESC`;
+  let artworksQuery = db.collection('artworks') as FirebaseFirestore.Query;
+  if (exhibition_id) {
+    artworksQuery = artworksQuery.where('exhibition_id', '==', exhibition_id).orderBy('created_at', 'asc');
+  } else {
+    artworksQuery = artworksQuery.orderBy('created_at', 'desc');
+  }
 
-  const artworks = exhibition_id
-    ? await sql`
-        SELECT a.id, a.code, a.artist, a.year, a.exhibition_id, a.cover_image_url, a.updated_at,
-          t.title,
-          (SELECT COUNT(*) FROM artwork_translations WHERE artwork_id = a.id AND is_reviewed = false)::int AS pending_count
-        FROM artworks a
-        LEFT JOIN artwork_translations t ON t.artwork_id = a.id AND t.language_code = 'zh-TW'
-        WHERE a.exhibition_id = ${exhibition_id}
-        ORDER BY a.created_at ASC
-      `
-    : await sql`
-        SELECT a.id, a.code, a.artist, a.year, a.exhibition_id, a.cover_image_url, a.updated_at,
-          t.title,
-          (SELECT COUNT(*) FROM artwork_translations WHERE artwork_id = a.id AND is_reviewed = false)::int AS pending_count
-        FROM artworks a
-        LEFT JOIN artwork_translations t ON t.artwork_id = a.id AND t.language_code = 'zh-TW'
-        ORDER BY a.created_at DESC
-      `;
+  const [exhibitionsSnap, artworksSnap] = await Promise.all([
+    db.collection('exhibitions').orderBy('created_at', 'desc').get(),
+    artworksQuery.get(),
+  ]);
+
+  const exhibitions = exhibitionsSnap.docs.map(d => ({ id: d.id, code: d.data().code as string, name: d.data().name as string }));
+
+  const artworks = await Promise.all(artworksSnap.docs.map(async (artDoc) => {
+    const data = artDoc.data();
+    const translationsSnap = await db.collection('artworks').doc(artDoc.id).collection('translations').get();
+    const zhTrans = translationsSnap.docs.find(d => d.id === 'zh-TW')?.data();
+    const pendingCount = translationsSnap.docs.filter(d => !d.data().is_reviewed).length;
+    return {
+      id: artDoc.id,
+      code: data.code as string,
+      artist: (data.artist as string) ?? null,
+      year: (data.year as string) ?? null,
+      exhibition_id: (data.exhibition_id as string) ?? null,
+      cover_image_url: (data.cover_image_url as string) ?? null,
+      updated_at: data.updated_at as string,
+      title: (zhTrans?.title as string) ?? null,
+      pending_count: pendingCount,
+    };
+  }));
 
   return (
     <ArtworksClient

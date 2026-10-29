@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,11 +11,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json({ error: 'rating must be between 1 and 5' }, { status: 400 });
     }
-    const [row] = await sql`
-      INSERT INTO exhibition_feedback (exhibition_id, rating, comment, language_code)
-      VALUES (${id}, ${rating}, ${comment ?? null}, ${language_code ?? 'zh-TW'})
-      RETURNING *
-    `;
+    const ref = db.collection('exhibition_feedback').doc();
+    const row = {
+      id: ref.id,
+      exhibition_id: id,
+      rating,
+      comment: comment ?? null,
+      language_code: language_code ?? 'zh-TW',
+      created_at: new Date().toISOString(),
+    };
+    await ref.set(row);
     return NextResponse.json({ data: row }, { status: 201 });
   } catch (err) {
     console.error(err);
@@ -29,11 +34,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    const rows = await sql`
-      SELECT * FROM exhibition_feedback
-      WHERE exhibition_id = ${id}
-      ORDER BY created_at DESC
-    `;
+    const snap = await db.collection('exhibition_feedback').where('exhibition_id', '==', id).orderBy('created_at', 'desc').get();
+    const rows = snap.docs.map(d => d.data());
     return NextResponse.json({ data: rows });
   } catch (err) {
     console.error(err);

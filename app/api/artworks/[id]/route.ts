@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -8,23 +8,21 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
-    const [artwork] = await sql`SELECT * FROM artworks WHERE id = ${id}`;
-    if (!artwork) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const artworkDoc = await db.collection('artworks').doc(id).get();
+    if (!artworkDoc.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const artwork = artworkDoc.data()!;
 
-    const translations = await sql`
-      SELECT * FROM artwork_translations WHERE artwork_id = ${id} ORDER BY language_code
-    `;
-    const segments = await sql`
-      SELECT s.*, json_agg(
-        json_build_object('id', t.id, 'language_code', t.language_code, 'text', t.text, 'is_reviewed', t.is_reviewed)
-        ORDER BY t.language_code
-      ) AS texts
-      FROM transcript_segments s
-      LEFT JOIN transcript_segment_texts t ON t.segment_id = s.id
-      WHERE s.artwork_id = ${id}
-      GROUP BY s.id
-      ORDER BY s.segment_index
-    `;
+    const translationsSnap = await db.collection('artworks').doc(id).collection('translations').orderBy('__name__').get();
+    const translations = translationsSnap.docs.map(d => ({ language_code: d.id, ...d.data() }));
+
+    const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').orderBy('segment_index').get();
+    const segments = await Promise.all(segsSnap.docs.map(async (segDoc) => {
+      const seg = segDoc.data();
+      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+      const texts = textsSnap.docs.map(t => ({ language_code: t.id, ...t.data() }));
+      return { ...seg, texts };
+    }));
+
     return NextResponse.json({ data: { ...artwork, translations, segments } });
   } catch (err) {
     console.error(err);
@@ -39,75 +37,57 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
     const body = await req.json();
-    const { exhibition_id, code, cover_image_url, artist, year, title, description, purchase_url } =
-      body;
+    const { exhibition_id, code, cover_image_url, artist, year, title, description, purchase_url } = body;
 
-    const [existing] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const existingDoc = await db.collection('artworks').doc(id).get();
+    if (!existingDoc.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const [artwork] = await sql`
-      UPDATE artworks SET
-        exhibition_id   = ${exhibition_id !== undefined ? exhibition_id : sql`exhibition_id`},
-        code            = COALESCE(${code ?? null}, code),
-        cover_image_url = ${cover_image_url !== undefined ? cover_image_url : sql`cover_image_url`},
-        artist          = ${artist !== undefined ? artist : sql`artist`},
-        year            = ${year !== undefined ? year : sql`year`},
-        updated_at      = now()
-      WHERE id = ${id}
-      RETURNING *
-    `;
+    if (code !== undefined) {
+      const codeCheck = await db.collection('artworks').where('code', '==', code.trim()).limit(1).get();
+      if (!codeCheck.empty && codeCheck.docs[0].id !== id) {
+        return NextResponse.json({ error: 'Artwork code already exists' }, { status: 409 });
+      }
+    }
 
-    // Update zh-TW translation if title/description/purchase_url provided
+    const now = new Date().toISOString();
+    const artworkUpdates: Record<string, unknown> = { updated_at: now };
+    if (exhibition_id !== undefined) artworkUpdates.exhibition_id = exhibition_id;
+    if (code !== undefined) artworkUpdates.code = code.trim();
+    if (cover_image_url !== undefined) artworkUpdates.cover_image_url = cover_image_url;
+    if (artist !== undefined) artworkUpdates.artist = artist;
+    if (year !== undefined) artworkUpdates.year = year;
+    await db.collection('artworks').doc(id).update(artworkUpdates);
+    const updatedArtworkDoc = await db.collection('artworks').doc(id).get();
+    const artwork = updatedArtworkDoc.data()!;
+
     let zhTranslation = null;
     if (title !== undefined || description !== undefined || purchase_url !== undefined) {
-      [zhTranslation] = await sql`
-        INSERT INTO artwork_translations
-          (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-        VALUES (
-          ${id}, 'zh-TW',
-          ${title ?? ''},
-          ${description ?? null},
-          ${purchase_url ?? null},
-          true
-        )
-        ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-          title       = COALESCE(NULLIF(EXCLUDED.title, ''), artwork_translations.title),
-          description = CASE WHEN ${description !== undefined} THEN EXCLUDED.description ELSE artwork_translations.description END,
-          purchase_url = CASE WHEN ${purchase_url !== undefined} THEN EXCLUDED.purchase_url ELSE artwork_translations.purchase_url END,
-          is_reviewed = true,
-          updated_at  = now()
-        RETURNING *
-      `;
+      const existingZhDoc = await db.collection('artworks').doc(id).collection('translations').doc('zh-TW').get();
+      const existingZh = existingZhDoc.exists ? existingZhDoc.data()! : {};
+      const newTitle = title?.trim() || existingZh.title || '';
+      const newDesc = description !== undefined ? description : (existingZh.description ?? null);
+      const newUrl = purchase_url !== undefined ? purchase_url : (existingZh.purchase_url ?? null);
+      zhTranslation = { title: newTitle, description: newDesc, purchase_url: newUrl, audio_url: existingZh.audio_url ?? null, is_reviewed: true, created_at: existingZh.created_at ?? now, updated_at: now };
+      await db.collection('artworks').doc(id).collection('translations').doc('zh-TW').set(zhTranslation, { merge: true });
 
-      // Re-translate if Chinese content changed
-      const zhTitle = zhTranslation?.title ?? title;
-      const zhDesc = zhTranslation?.description ?? description;
-
-      if (zhTitle) {
+      if (newTitle) {
         const [titleT, descT] = await Promise.all([
-          translateBoth(zhTitle),
-          zhDesc ? translateBoth(zhDesc) : Promise.resolve({ en: null, failed: false }),
+          translateBoth(newTitle),
+          newDesc ? translateBoth(newDesc) : Promise.resolve({ en: null, failed: false }),
         ]);
-
-        await sql`
-          INSERT INTO artwork_translations
-            (artwork_id, language_code, title, description, purchase_url, is_reviewed)
-          VALUES (${id}, 'en', ${titleT.en ?? ''}, ${descT.en ?? null}, ${purchase_url ?? null}, false)
-          ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-            title = EXCLUDED.title, description = EXCLUDED.description,
-            is_reviewed = false, updated_at = now()
-        `;
-        const translationWarning = titleT.failed;
-        return NextResponse.json({ data: { ...artwork, zh_translation: zhTranslation }, translation_warning: translationWarning });
+        const existingEnDoc = await db.collection('artworks').doc(id).collection('translations').doc('en').get();
+        const existingEn = existingEnDoc.exists ? existingEnDoc.data()! : {};
+        await db.collection('artworks').doc(id).collection('translations').doc('en').set({
+          title: titleT.en ?? '', description: descT.en ?? null,
+          purchase_url: newUrl, audio_url: existingEn.audio_url ?? null,
+          is_reviewed: false, created_at: existingEn.created_at ?? now, updated_at: now,
+        }, { merge: true });
+        return NextResponse.json({ data: { ...artwork, zh_translation: zhTranslation }, translation_warning: titleT.failed });
       }
     }
 
     return NextResponse.json({ data: { ...artwork, zh_translation: zhTranslation } });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('unique') && msg.includes('code')) {
-      return NextResponse.json({ error: 'Artwork code already exists' }, { status: 409 });
-    }
+  } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Failed to update artwork' }, { status: 500 });
   }
@@ -119,14 +99,21 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    const [existing] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
-    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const existingDoc = await db.collection('artworks').doc(id).get();
+    if (!existingDoc.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    await sql`DELETE FROM transcript_segment_texts WHERE segment_id IN (SELECT id FROM transcript_segments WHERE artwork_id = ${id})`;
-    await sql`DELETE FROM transcript_segments WHERE artwork_id = ${id}`;
-    await sql`DELETE FROM artwork_translations WHERE artwork_id = ${id}`;
-    await sql`DELETE FROM events WHERE artwork_id = ${id}`;
-    await sql`DELETE FROM artworks WHERE id = ${id}`;
+    const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').get();
+    for (const segDoc of segsSnap.docs) {
+      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+      for (const textDoc of textsSnap.docs) await textDoc.ref.delete();
+      await segDoc.ref.delete();
+    }
+    const translationsSnap = await db.collection('artworks').doc(id).collection('translations').get();
+    for (const tDoc of translationsSnap.docs) await tDoc.ref.delete();
+    const eventsSnap = await db.collection('events').where('artwork_id', '==', id).get();
+    for (const eDoc of eventsSnap.docs) await eDoc.ref.delete();
+    await db.collection('artworks').doc(id).delete();
+
     return NextResponse.json({ data: { deleted: true } });
   } catch (err) {
     console.error(err);
