@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -8,20 +8,13 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
-    const rows = await sql`
-      SELECT s.*,
-        json_agg(
-          json_build_object(
-            'id', t.id, 'language_code', t.language_code,
-            'text', t.text, 'is_reviewed', t.is_reviewed
-          ) ORDER BY t.language_code
-        ) FILTER (WHERE t.id IS NOT NULL) AS texts
-      FROM transcript_segments s
-      LEFT JOIN transcript_segment_texts t ON t.segment_id = s.id
-      WHERE s.artwork_id = ${id}
-      GROUP BY s.id
-      ORDER BY s.segment_index
-    `;
+    const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').orderBy('segment_index').get();
+    const rows = await Promise.all(segsSnap.docs.map(async (segDoc) => {
+      const seg = segDoc.data();
+      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+      const texts = textsSnap.docs.map(t => ({ language_code: t.id, ...t.data() }));
+      return { ...seg, texts };
+    }));
     return NextResponse.json({ data: rows });
   } catch (err) {
     console.error(err);
@@ -49,61 +42,47 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'segments array is required' }, { status: 400 });
     }
 
-    // Validate each segment
     for (const s of segments) {
       if (typeof s.start_time !== 'number' || typeof s.end_time !== 'number') {
         return NextResponse.json({ error: 'start_time and end_time must be numbers' }, { status: 400 });
       }
       if (s.end_time <= s.start_time) {
-        return NextResponse.json(
-          { error: `Segment ${s.segment_index}: end_time must be greater than start_time` },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: `Segment ${s.segment_index}: end_time must be greater than start_time` }, { status: 400 });
       }
     }
 
-    // Check for time overlaps
     const sorted = [...segments].sort((a, b) => a.start_time - b.start_time);
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].start_time < sorted[i - 1].end_time) {
-        return NextResponse.json(
-          { error: `Segments overlap: index ${sorted[i - 1].segment_index} and ${sorted[i].segment_index}` },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: `Segments overlap: index ${sorted[i - 1].segment_index} and ${sorted[i].segment_index}` }, { status: 400 });
       }
     }
 
-    const [artworkRow] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
-    if (!artworkRow) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
+    const artworkDoc = await db.collection('artworks').doc(id).get();
+    if (!artworkDoc.exists) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
 
-    // Delete existing segments (cascade deletes texts)
-    await sql`DELETE FROM transcript_segments WHERE artwork_id = ${id}`;
+    // Delete existing segments
+    const existingSegs = await db.collection('artworks').doc(id).collection('transcript_segments').get();
+    for (const segDoc of existingSegs.docs) {
+      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+      for (const textDoc of textsSnap.docs) await textDoc.ref.delete();
+      await segDoc.ref.delete();
+    }
 
-    // Insert new segments and zh-TW texts, then auto-translate
     const results = [];
     let translationWarning = false;
     for (const seg of segments) {
-      const [segment] = await sql`
-        INSERT INTO transcript_segments (artwork_id, segment_index, start_time, end_time)
-        VALUES (${id}, ${seg.segment_index}, ${seg.start_time}, ${seg.end_time})
-        RETURNING *
-      `;
+      const segRef = db.collection('artworks').doc(id).collection('transcript_segments').doc();
+      const segment = { id: segRef.id, artwork_id: id, segment_index: seg.segment_index, start_time: seg.start_time, end_time: seg.end_time };
+      await segRef.set(segment);
 
-      const [zhText] = await sql`
-        INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
-        VALUES (${segment.id}, 'zh-TW', ${seg.text}, true)
-        RETURNING *
-      `;
+      const zhText = { language_code: 'zh-TW', text: seg.text, is_reviewed: true };
+      await segRef.collection('texts').doc('zh-TW').set(zhText);
 
-      // Auto-translate segment text to English (always insert even if Gemini fails)
       const { en, failed } = await translateBoth(seg.text);
       if (failed) translationWarning = true;
-
-      const [enText] = await sql`
-        INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
-        VALUES (${segment.id}, 'en', ${en ?? ''}, false)
-        RETURNING *
-      `;
+      const enText = { language_code: 'en', text: en ?? '', is_reviewed: false };
+      await segRef.collection('texts').doc('en').set(enText);
 
       results.push({ ...segment, texts: [zhText, enText] });
     }
@@ -115,8 +94,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 }
 
-// PATCH: update translated texts for a specific language (line N → segment_index N)
-// If no segments exist yet, creates them from the provided texts (supports timestamped format).
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -125,54 +102,36 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { language_code, texts } = await req.json() as { language_code: string; texts: string[] };
   if (!Array.isArray(texts)) return NextResponse.json({ error: 'texts array required' }, { status: 400 });
 
-  const segs = await sql`
-    SELECT id FROM transcript_segments WHERE artwork_id = ${id} ORDER BY segment_index
-  `;
+  const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').orderBy('segment_index').get();
 
-  if (segs.length > 0) {
-    // Update existing segment texts
-    for (let i = 0; i < segs.length; i++) {
+  if (segsSnap.size > 0) {
+    for (let i = 0; i < segsSnap.docs.length; i++) {
       const text = (texts[i] ?? '').trim();
-      await sql`
-        UPDATE transcript_segment_texts
-        SET text = ${text}, is_reviewed = true
-        WHERE segment_id = ${segs[i].id} AND language_code = ${language_code}
-      `;
+      await db.collection('artworks').doc(id).collection('transcript_segments').doc(segsSnap.docs[i].id).collection('texts').doc(language_code).set({ text, is_reviewed: true }, { merge: true });
     }
-    return NextResponse.json({ data: { updated: segs.length } });
+    return NextResponse.json({ data: { updated: segsSnap.size } });
   }
 
-  // No existing segments — create from provided texts
   const nonEmpty = texts.filter(t => t.trim());
   if (nonEmpty.length === 0) return NextResponse.json({ data: { created: 0 } });
 
-  const [artworkRow] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
-  if (!artworkRow) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
+  const artworkDoc = await db.collection('artworks').doc(id).get();
+  if (!artworkDoc.exists) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
 
-  // Detect timestamped format: all lines must be "start,end,text"
   const allTimestamped = nonEmpty.every(line => {
     const p = line.split(',');
     return p.length >= 3 && !isNaN(parseFloat(p[0])) && !isNaN(parseFloat(p[1]));
   });
 
   const inputs = allTimestamped
-    ? nonEmpty.map((line, i) => {
-        const p = line.split(',');
-        return { segment_index: i, start_time: parseFloat(p[0]), end_time: parseFloat(p[1]), text: p.slice(2).join(',').trim() };
-      })
+    ? nonEmpty.map((line, i) => { const p = line.split(','); return { segment_index: i, start_time: parseFloat(p[0]), end_time: parseFloat(p[1]), text: p.slice(2).join(',').trim() }; })
     : nonEmpty.map((text, i) => ({ segment_index: i, start_time: i * 10, end_time: (i + 1) * 10, text: text.trim() }));
 
   let created = 0;
   for (const seg of inputs) {
-    const [segment] = await sql`
-      INSERT INTO transcript_segments (artwork_id, segment_index, start_time, end_time)
-      VALUES (${id}, ${seg.segment_index}, ${seg.start_time}, ${seg.end_time})
-      RETURNING *
-    `;
-    await sql`
-      INSERT INTO transcript_segment_texts (segment_id, language_code, text, is_reviewed)
-      VALUES (${segment.id}, ${language_code}, ${seg.text}, true)
-    `;
+    const segRef = db.collection('artworks').doc(id).collection('transcript_segments').doc();
+    await segRef.set({ id: segRef.id, artwork_id: id, segment_index: seg.segment_index, start_time: seg.start_time, end_time: seg.end_time });
+    await segRef.collection('texts').doc(language_code).set({ text: seg.text, is_reviewed: true });
     created++;
   }
   return NextResponse.json({ data: { created } }, { status: 201 });

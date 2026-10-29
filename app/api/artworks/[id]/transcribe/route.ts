@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import Groq from 'groq-sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -17,10 +17,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'GROQ_API_KEY 未設定' }, { status: 503 });
   }
 
-  const [translation] = await sql`
-    SELECT audio_url FROM artwork_translations
-    WHERE artwork_id = ${id} AND language_code = ${lang}
-  `;
+  const translationDoc = await db.collection('artworks').doc(id).collection('translations').doc(lang).get();
+  const translation = translationDoc.exists ? translationDoc.data() : null;
   if (!translation?.audio_url) {
     return NextResponse.json({
       error: lang === 'en' ? '請先上傳英文音檔再進行辨識' : '請先上傳音檔再進行辨識',

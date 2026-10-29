@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { uploadAudio } from '@/lib/storage';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { NextRequest, NextResponse } from 'next/server';
@@ -63,8 +63,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const selectedVoice = ALL_VOICES.includes(voice) ? voice : defaultVoice;
   const xmlLang = selectedVoice.startsWith('en-US') ? 'en-US' : selectedVoice.startsWith('en-GB') ? 'en-GB' : 'zh-TW';
 
-  const [artwork] = await sql`SELECT id FROM artworks WHERE id = ${id}`;
-  if (!artwork) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
+  const artworkDoc = await db.collection('artworks').doc(id).get();
+  if (!artworkDoc.exists) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
 
   try {
     const segments = text.trim().split('\n').filter((s: string) => s.trim());
@@ -113,13 +113,15 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: result.error }, { status: 503 });
     }
 
-    const [translation] = await sql`
-      INSERT INTO artwork_translations (artwork_id, language_code, title, audio_url, is_reviewed)
-      VALUES (${id}, ${langCode}, '', ${result.url}, ${langCode === 'zh-TW'})
-      ON CONFLICT (artwork_id, language_code) DO UPDATE SET
-        audio_url = EXCLUDED.audio_url, updated_at = now()
-      RETURNING *
-    `;
+    const now = new Date().toISOString();
+    const translationRef = db.collection('artworks').doc(id).collection('translations').doc(langCode);
+    const existingDoc = await translationRef.get();
+    if (existingDoc.exists) {
+      await translationRef.update({ audio_url: result.url, updated_at: now });
+    } else {
+      await translationRef.set({ title: '', description: null, purchase_url: null, audio_url: result.url, is_reviewed: langCode === 'zh-TW', created_at: now, updated_at: now });
+    }
+    const translation = (await translationRef.get()).data();
 
     return NextResponse.json({ data: { audio_url: result.url, translation, fallback: usedFallback } });
   } catch (err) {

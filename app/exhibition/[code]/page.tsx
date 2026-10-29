@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import ExhibitionClient from './ExhibitionClient';
@@ -15,8 +15,9 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
-  const [row] = await sql`SELECT name FROM exhibitions WHERE code = ${code}`;
-  return { title: row?.name ? `${row.name} | 語音導覽` : '語音導覽' };
+  const snap = await db.collection('exhibitions').where('code', '==', code).limit(1).get();
+  const name = snap.docs[0]?.data()?.name;
+  return { title: name ? `${name} | 語音導覽` : '語音導覽' };
 }
 
 const VALID_LANGS: LanguageCode[] = ['zh-TW', 'en'];
@@ -28,26 +29,24 @@ export default async function ExhibitionPage({ params, searchParams }: Props) {
     ? (lang as LanguageCode)
     : 'zh-TW';
 
-  const exRows = await sql`SELECT * FROM exhibitions WHERE code = ${code}`;
-  if (!exRows[0]) notFound();
-  const exhibition = exRows[0] as unknown as ExhibitionRow;
+  const exSnap = await db.collection('exhibitions').where('code', '==', code).limit(1).get();
+  if (exSnap.empty) notFound();
+  const exDoc = exSnap.docs[0];
+  const exhibition = { id: exDoc.id, ...exDoc.data() } as unknown as ExhibitionRow;
 
-  const artworks = (await sql`
-    SELECT a.id, a.code, a.cover_image_url, a.artist, a.year
-    FROM artworks a
-    WHERE a.exhibition_id = ${exhibition.id}
-    ORDER BY a.created_at ASC
-  `) as unknown as ArtworkRow[];
+  const artworksSnap = await db.collection('artworks')
+    .where('exhibition_id', '==', exhibition.id)
+    .orderBy('created_at', 'asc')
+    .get();
+  const artworks = artworksSnap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as ArtworkRow[];
 
-  const artworkIds = artworks.map((a) => a.id);
-  const translations: TranslationRow[] =
-    artworkIds.length > 0
-      ? (await sql`
-          SELECT artwork_id, language_code, title
-          FROM artwork_translations
-          WHERE artwork_id = ANY(${artworkIds}::uuid[])
-        `) as unknown as TranslationRow[]
-      : [];
+  const translations: TranslationRow[] = [];
+  await Promise.all(artworks.map(async (a) => {
+    const transSnap = await db.collection('artworks').doc(a.id).collection('translations').get();
+    transSnap.docs.forEach(d => {
+      translations.push({ artwork_id: a.id, language_code: d.id, title: d.data().title ?? '' });
+    });
+  }));
 
   return (
     <ExhibitionClient

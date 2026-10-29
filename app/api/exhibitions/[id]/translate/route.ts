@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
@@ -31,21 +31,21 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    const [ex] = await sql`SELECT * FROM exhibitions WHERE id = ${id}`;
-    if (!ex) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const exDoc = await db.collection('exhibitions').doc(id).get();
+    if (!exDoc.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const ex = exDoc.data()!;
 
     const [name_en, description_en] = await Promise.all([
       geminiTranslate(ex.name as string, 'en'),
       geminiTranslate((ex.description as string) ?? '', 'en'),
     ]);
 
-    const [row] = await sql`
-      UPDATE exhibitions
-      SET name_en = ${name_en || null}, description_en = ${description_en || null}
-      WHERE id = ${id}
-      RETURNING *
-    `;
-    return NextResponse.json({ data: row });
+    await db.collection('exhibitions').doc(id).update({
+      name_en: name_en || null,
+      description_en: description_en || null,
+    });
+    const updatedDoc = await db.collection('exhibitions').doc(id).get();
+    return NextResponse.json({ data: updatedDoc.data() });
   } catch (err) {
     console.error('[translate exhibition]', err);
     return NextResponse.json({ error: 'Translation failed' }, { status: 500 });

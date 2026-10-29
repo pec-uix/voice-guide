@@ -1,4 +1,4 @@
-import { sql } from '@/lib/db';
+import { db } from '@/lib/firebase-admin';
 import { notFound } from 'next/navigation';
 import ArtworkEditor from './ArtworkEditor';
 
@@ -7,40 +7,42 @@ type Props = { params: Promise<{ id: string }> };
 export default async function ArtworkEditPage({ params }: Props) {
   const { id } = await params;
 
-  const rows = await sql`SELECT * FROM artworks WHERE id = ${id}`;
-  if (!rows[0]) notFound();
-  const artwork = rows[0];
+  const artworkDoc = await db.collection('artworks').doc(id).get();
+  if (!artworkDoc.exists) notFound();
+  const artwork = { id: artworkDoc.id, ...artworkDoc.data() } as { id: string; exhibition_id?: string; [key: string]: unknown };
 
-  const [translations, segments, exhibitions, prevNext] = await Promise.all([
-    sql`SELECT * FROM artwork_translations WHERE artwork_id = ${id} ORDER BY language_code`,
-    sql`
-      SELECT s.id, s.segment_index, s.start_time::float AS start_time, s.end_time::float AS end_time,
-        COALESCE(
-          json_agg(
-            json_build_object('language_code', t.language_code, 'text', t.text, 'is_reviewed', t.is_reviewed)
-            ORDER BY t.language_code
-          ) FILTER (WHERE t.id IS NOT NULL),
-          '[]'
-        ) AS texts
-      FROM transcript_segments s
-      LEFT JOIN transcript_segment_texts t ON t.segment_id = s.id
-      WHERE s.artwork_id = ${id}
-      GROUP BY s.id
-      ORDER BY s.segment_index
-    `,
-    sql`SELECT id, name FROM exhibitions ORDER BY created_at DESC`,
-    sql`
-      SELECT
-        (SELECT id FROM artworks
-          WHERE exhibition_id IS NOT DISTINCT FROM ${artwork.exhibition_id}
-            AND created_at < ${artwork.created_at}
-          ORDER BY created_at DESC LIMIT 1) AS prev_id,
-        (SELECT id FROM artworks
-          WHERE exhibition_id IS NOT DISTINCT FROM ${artwork.exhibition_id}
-            AND created_at > ${artwork.created_at}
-          ORDER BY created_at ASC LIMIT 1) AS next_id
-    `,
+  const [translationsSnap, segsSnap, exhibitionsSnap] = await Promise.all([
+    db.collection('artworks').doc(id).collection('translations').orderBy('__name__').get(),
+    db.collection('artworks').doc(id).collection('transcript_segments').orderBy('segment_index').get(),
+    db.collection('exhibitions').orderBy('created_at', 'desc').get(),
   ]);
+
+  const translations = translationsSnap.docs.map(d => ({ language_code: d.id, ...d.data() }));
+
+  const segments = await Promise.all(segsSnap.docs.map(async (segDoc) => {
+    const seg = segDoc.data();
+    const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+    const texts = textsSnap.docs.map(t => ({ language_code: t.id, ...t.data() }));
+    return { ...seg, texts };
+  }));
+
+  const exhibitions = exhibitionsSnap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
+
+  let prevId: string | null = null;
+  let nextId: string | null = null;
+  const exhibitionId = artwork.exhibition_id as string | null | undefined;
+  if (exhibitionId) {
+    const siblingsSnap = await db.collection('artworks')
+      .where('exhibition_id', '==', exhibitionId)
+      .orderBy('created_at', 'asc')
+      .get();
+    const siblings = siblingsSnap.docs;
+    const idx = siblings.findIndex(d => d.id === id);
+    if (idx !== -1) {
+      prevId = idx > 0 ? siblings[idx - 1].id : null;
+      nextId = idx < siblings.length - 1 ? siblings[idx + 1].id : null;
+    }
+  }
 
   return (
     <ArtworkEditor
@@ -48,8 +50,8 @@ export default async function ArtworkEditPage({ params }: Props) {
       translations={translations as never}
       segments={segments as never}
       exhibitions={exhibitions as never}
-      prevId={(prevNext[0]?.prev_id as string) ?? null}
-      nextId={(prevNext[0]?.next_id as string) ?? null}
+      prevId={prevId}
+      nextId={nextId}
     />
   );
 }
