@@ -62,14 +62,10 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
     translations.find((tr) => tr.language_code === lang) ??
     translations.find((tr) => tr.language_code === 'zh-TW');
 
-  const rawAudioUrl =
+  const audioUrl =
     translations.find((tr) => tr.language_code === lang)?.audio_url ??
     translations.find((tr) => tr.language_code === 'zh-TW')?.audio_url ??
     null;
-  // e_trim removes leading/trailing silence at serve-time without re-uploading
-  const audioUrl = rawAudioUrl?.includes('cloudinary.com')
-    ? rawAudioUrl.replace('/upload/', '/upload/e_trim/')
-    : rawAudioUrl;
 
   const purchaseUrl = translation?.purchase_url ?? null;
 
@@ -192,7 +188,7 @@ export default function ArtworkViewer({ artwork, translations, segments, initial
                   />
                   <div className="flex justify-between text-xs text-stone-400 mt-1">
                     <span>{formatTime(currentTime)}</span>
-                    <span className="text-stone-300">-{formatTime(remaining)}</span>
+                    <span>{duration > 0 ? `-${formatTime(remaining)}` : '--:--'}</span>
                   </div>
                 </div>
               </div>
