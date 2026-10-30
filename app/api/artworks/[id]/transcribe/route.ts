@@ -1,6 +1,5 @@
 import { auth } from '@/auth';
 import { db } from '@/lib/firebase-admin';
-import Groq from 'groq-sdk';
 import { NextRequest, NextResponse } from 'next/server';
 
 type Params = { params: Promise<{ id: string }> };
@@ -13,8 +12,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const body = await req.json().catch(() => ({}));
   const lang: string = body.lang === 'en' ? 'en' : 'zh-TW';
 
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: 'GROQ_API_KEY 未設定' }, { status: 503 });
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'GEMINI_API_KEY 未設定' }, { status: 503 });
   }
 
   const translationDoc = await db.collection('artworks').doc(id).collection('translations').doc(lang).get();
@@ -30,8 +29,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const audioRes = await fetch(audioUrl);
     if (!audioRes.ok) throw new Error('音檔下載失敗');
     const audioBuffer = await audioRes.arrayBuffer();
+    const base64Audio = Buffer.from(audioBuffer).toString('base64');
 
-    // Detect extension from URL for correct MIME type
     const ext = audioUrl.split('.').pop()?.split('?')[0] ?? 'm4a';
     const mimeMap: Record<string, string> = {
       m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav',
@@ -39,46 +38,39 @@ export async function POST(req: NextRequest, { params }: Params) {
     };
     const mimeType = mimeMap[ext] ?? 'audio/mp4';
 
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    const transcription = await groq.audio.transcriptions.create({
-      file: new File([audioBuffer], `audio.${ext}`, { type: mimeType }),
-      model: 'whisper-large-v3',
-      response_format: 'verbose_json',
-      language: lang === 'en' ? 'en' : 'zh',
-      ...(lang !== 'en' && { prompt: '以下是繁體中文的藝術導覽內容，請使用繁體中文輸出。' }),
-    }) as { segments?: Array<{ start: number; end: number; text: string }> };
+    const prompt = lang === 'en'
+      ? 'Transcribe this audio in English. Return ONLY a JSON array, no other text:\n[{"start": 0.0, "end": 3.5, "text": "sentence"}]'
+      : '請將這段音檔逐字轉錄成繁體中文，標記每個句子的開始和結束時間（秒數）。只輸出以下格式的JSON陣列，不要其他說明：\n[{"start": 0.0, "end": 3.5, "text": "繁體中文文字"}]';
 
-    let segments = (transcription.segments ?? []).map((s, i) => ({
+    const res = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inlineData: { mimeType, data: base64Audio } },
+            { text: prompt },
+          ]}],
+          generationConfig: { temperature: 0 },
+        }),
+      }
+    );
+
+    if (!res.ok) throw new Error(`Gemini API error: ${await res.text()}`);
+    const data = await res.json() as { candidates?: Array<{ content: { parts: Array<{ text: string }> } }> };
+    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error('無法解析 Gemini 回傳的格式');
+
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{ start: number; end: number; text: string }>;
+    const segments = parsed.map((s, i) => ({
       segment_index: i,
       start_time: Math.round(s.start * 10) / 10,
       end_time: Math.round(s.end * 10) / 10,
       text: s.text.trim(),
     }));
-
-    // Whisper outputs Simplified Chinese even with prompting — convert to Traditional via Gemini
-    if (lang !== 'en' && process.env.GEMINI_API_KEY && segments.length > 0) {
-      try {
-        const joined = segments.map(s => s.text).join('\n');
-        const prompt = `將以下每一行文字從簡體中文轉換成繁體中文，保持原本的行數與順序，每行只輸出轉換後的繁體中文文字，不要加任何說明或編號：\n${joined}`;
-        const res = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-          }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const lines = (data.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().split('\n');
-          if (lines.length === segments.length) {
-            segments = segments.map((s, i) => ({ ...s, text: lines[i].trim() || s.text }));
-          }
-        }
-      } catch {
-        // 轉換失敗時保留原始辨識結果
-      }
-    }
 
     return NextResponse.json({ data: segments });
   } catch (err) {
