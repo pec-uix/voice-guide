@@ -36,15 +36,17 @@ export default async function ExhibitionPage({ params, searchParams }: Props) {
 
   const artworksSnap = await db.collection('artworks')
     .where('exhibition_id', '==', exhibition.id)
-    .orderBy('created_at', 'asc')
     .get();
-  const artworks = artworksSnap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as ArtworkRow[];
+  const artworks = artworksSnap.docs
+    .slice()
+    .sort((a, b) => ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? ''))
+    .map(d => ({ id: d.id, ...d.data() })) as unknown as ArtworkRow[];
 
   const translations: TranslationRow[] = [];
   await Promise.all(artworks.map(async (a) => {
     const transSnap = await db.collection('artworks').doc(a.id).collection('translations').get();
     transSnap.docs.forEach(d => {
-      translations.push({ artwork_id: a.id, language_code: d.id, title: d.data().title ?? '' });
+      translations.push({ artwork_id: a.id, language_code: d.id, title: (d.data().title as string) ?? '' });
     });
   }));
 

@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase-admin';
+import { db, batchSetDocuments } from '@/lib/firebase-admin';
 import { auth } from '@/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
     }
 
     const exRef = db.collection('exhibitions').doc();
+    const now = new Date().toISOString();
     const exhibition = {
-      id: exRef.id,
       code: code.trim(),
       name: name.trim(),
       name_en: name_en ?? null,
@@ -49,61 +49,81 @@ export async function POST(req: NextRequest) {
       description_en: description_en ?? null,
       cover_image_url: cover_image_url ?? null,
       mobile_cover_image_url: mobile_cover_image_url ?? null,
-      created_at: new Date().toISOString(),
+      created_at: now,
     };
-    await exRef.set(exhibition);
 
     const validArtworks = (artworks ?? []).filter(aw => aw.title?.trim());
-    if (validArtworks.length === 0) {
-      return NextResponse.json({ data: { exhibition, artworksCreated: 0 } }, { status: 201 });
-    }
 
-    const now = new Date().toISOString();
-    await Promise.all(validArtworks.map(async (aw, i) => {
+    // Batch 1: exhibition + all artwork parent documents
+    const parentDocs: Array<{ path: string; data: Record<string, unknown> }> = [
+      { path: `exhibitions/${exRef.id}`, data: exhibition },
+    ];
+    const artworkRefs: Array<{ id: string; aw: ArtworkInput; artworkCode: string }> = [];
+
+    for (let i = 0; i < validArtworks.length; i++) {
+      const aw = validArtworks[i];
       const artworkRef = db.collection('artworks').doc();
       const artworkCode = `${code.trim()}-${aw.productId ?? i + 1}`;
-      const artwork = {
-        id: artworkRef.id,
-        exhibition_id: exRef.id,
-        code: artworkCode,
-        cover_image_url: aw.imageUrl ?? null,
-        artist: aw.artist ?? null,
-        year: aw.year ?? null,
-        created_at: now,
-        updated_at: now,
-      };
-      await artworkRef.set(artwork);
+      artworkRefs.push({ id: artworkRef.id, aw, artworkCode });
 
-      await artworkRef.collection('translations').doc('zh-TW').set({
-        title: aw.title.trim(),
-        description: aw.description ?? null,
-        purchase_url: aw.purchaseUrl ?? null,
-        audio_url: null,
-        is_reviewed: true,
-        created_at: now,
-        updated_at: now,
+      parentDocs.push({
+        path: `artworks/${artworkRef.id}`,
+        data: {
+          exhibition_id: exRef.id,
+          code: artworkCode,
+          cover_image_url: aw.imageUrl ?? null,
+          artist: aw.artist ?? null,
+          year: aw.year ?? null,
+          created_at: now,
+          updated_at: now,
+        },
       });
+    }
 
-      if (aw.title_en?.trim()) {
-        const enPurchaseUrl = aw.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/') ?? null;
-        await artworkRef.collection('translations').doc('en').set({
-          title: aw.title_en.trim(),
-          description: aw.description_en ?? null,
-          purchase_url: enPurchaseUrl,
+    await batchSetDocuments(parentDocs);
+
+    // Batch 2: translations (parent artworks now exist)
+    const translationDocs: Array<{ path: string; data: Record<string, unknown> }> = [];
+    for (const { id: artworkId, aw } of artworkRefs) {
+      translationDocs.push({
+        path: `artworks/${artworkId}/translations/zh-TW`,
+        data: {
+          title: aw.title.trim(),
+          description: aw.description ?? null,
+          purchase_url: aw.purchaseUrl ?? null,
           audio_url: null,
           is_reviewed: true,
           created_at: now,
           updated_at: now,
+        },
+      });
+
+      if (aw.title_en?.trim()) {
+        const enPurchaseUrl = aw.purchaseUrl?.replace('uniart.com.tw/products/', 'uniart.com.tw/en/products/') ?? null;
+        translationDocs.push({
+          path: `artworks/${artworkId}/translations/en`,
+          data: {
+            title: aw.title_en.trim(),
+            description: aw.description_en ?? null,
+            purchase_url: enPurchaseUrl,
+            audio_url: null,
+            is_reviewed: true,
+            created_at: now,
+            updated_at: now,
+          },
         });
       }
-    }));
+    }
+
+    if (translationDocs.length > 0) await batchSetDocuments(translationDocs);
 
     return NextResponse.json(
-      { data: { exhibition, artworksCreated: validArtworks.length } },
+      { data: { exhibition: { id: exRef.id, ...exhibition }, artworksCreated: validArtworks.length } },
       { status: 201 },
     );
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: '建立失敗' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `建立失敗：${msg}` }, { status: 500 });
   }
 }

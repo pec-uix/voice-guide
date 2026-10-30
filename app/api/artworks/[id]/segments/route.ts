@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { db } from '@/lib/firebase-admin';
+import { db, batchDeletePaths, batchSetDocuments } from '@/lib/firebase-admin';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -61,31 +61,47 @@ export async function POST(req: NextRequest, { params }: Params) {
     const artworkDoc = await db.collection('artworks').doc(id).get();
     if (!artworkDoc.exists) return NextResponse.json({ error: 'Artwork not found' }, { status: 404 });
 
-    // Delete existing segments
+    // Delete existing segments using batchDelete
     const existingSegs = await db.collection('artworks').doc(id).collection('transcript_segments').get();
-    for (const segDoc of existingSegs.docs) {
-      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
-      for (const textDoc of textsSnap.docs) await textDoc.ref.delete();
-      await segDoc.ref.delete();
+    if (existingSegs.docs.length > 0) {
+      const pathsToDelete: string[] = [];
+      await Promise.all(existingSegs.docs.map(async (segDoc) => {
+        const textsSnap = await db.collection('artworks').doc(id)
+          .collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+        textsSnap.docs.forEach(t =>
+          pathsToDelete.push(`artworks/${id}/transcript_segments/${segDoc.id}/texts/${t.id}`)
+        );
+        pathsToDelete.push(`artworks/${id}/transcript_segments/${segDoc.id}`);
+      }));
+      await batchDeletePaths(pathsToDelete);
     }
 
+    // Translate all segments in parallel (N Gemini calls simultaneously)
+    const translations = await Promise.all(segments.map(seg => translateBoth(seg.text)));
+
+    // Build all documents and write in a single batchWrite
+    const docs: Array<{ path: string; data: Record<string, unknown> }> = [];
     const results = [];
     let translationWarning = false;
-    for (const seg of segments) {
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
       const segRef = db.collection('artworks').doc(id).collection('transcript_segments').doc();
-      const segment = { id: segRef.id, artwork_id: id, segment_index: seg.segment_index, start_time: seg.start_time, end_time: seg.end_time };
-      await segRef.set(segment);
-
-      const zhText = { language_code: 'zh-TW', text: seg.text, is_reviewed: true };
-      await segRef.collection('texts').doc('zh-TW').set(zhText);
-
-      const { en, failed } = await translateBoth(seg.text);
+      const { en, failed } = translations[i];
       if (failed) translationWarning = true;
+
+      const segment = { id: segRef.id, artwork_id: id, segment_index: seg.segment_index, start_time: seg.start_time, end_time: seg.end_time };
+      const zhText = { language_code: 'zh-TW', text: seg.text, is_reviewed: true };
       const enText = { language_code: 'en', text: en ?? '', is_reviewed: false };
-      await segRef.collection('texts').doc('en').set(enText);
+
+      docs.push({ path: `artworks/${id}/transcript_segments/${segRef.id}`, data: segment });
+      docs.push({ path: `artworks/${id}/transcript_segments/${segRef.id}/texts/zh-TW`, data: zhText });
+      docs.push({ path: `artworks/${id}/transcript_segments/${segRef.id}/texts/en`, data: enText });
 
       results.push({ ...segment, texts: [zhText, enText] });
     }
+
+    await batchSetDocuments(docs);
 
     return NextResponse.json({ data: results, translation_warning: translationWarning }, { status: 201 });
   } catch (err) {

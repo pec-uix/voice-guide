@@ -6,12 +6,9 @@ type Props = { searchParams: Promise<{ exhibition_id?: string }> };
 export default async function ArtworksPage({ searchParams }: Props) {
   const { exhibition_id } = await searchParams;
 
-  let artworksQuery = db.collection('artworks') as FirebaseFirestore.Query;
-  if (exhibition_id) {
-    artworksQuery = artworksQuery.where('exhibition_id', '==', exhibition_id).orderBy('created_at', 'asc');
-  } else {
-    artworksQuery = artworksQuery.orderBy('created_at', 'desc');
-  }
+  const artworksQuery = exhibition_id
+    ? db.collection('artworks').where('exhibition_id', '==', exhibition_id)
+    : db.collection('artworks').orderBy('created_at', 'desc');
 
   const [exhibitionsSnap, artworksSnap] = await Promise.all([
     db.collection('exhibitions').orderBy('created_at', 'desc').get(),
@@ -19,6 +16,12 @@ export default async function ArtworksPage({ searchParams }: Props) {
   ]);
 
   const exhibitions = exhibitionsSnap.docs.map(d => ({ id: d.id, code: d.data().code as string, name: d.data().name as string }));
+
+  if (exhibition_id) {
+    artworksSnap.docs.sort((a, b) =>
+      ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? '')
+    );
+  }
 
   const artworks = await Promise.all(artworksSnap.docs.map(async (artDoc) => {
     const data = artDoc.data();

@@ -34,9 +34,10 @@ export default async function ArtworkEditPage({ params }: Props) {
   if (exhibitionId) {
     const siblingsSnap = await db.collection('artworks')
       .where('exhibition_id', '==', exhibitionId)
-      .orderBy('created_at', 'asc')
       .get();
-    const siblings = siblingsSnap.docs;
+    const siblings = siblingsSnap.docs.slice().sort((a, b) =>
+      ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? '')
+    );
     const idx = siblings.findIndex(d => d.id === id);
     if (idx !== -1) {
       prevId = idx > 0 ? siblings[idx - 1].id : null;

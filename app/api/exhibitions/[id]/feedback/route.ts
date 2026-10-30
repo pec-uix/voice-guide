@@ -34,8 +34,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   try {
-    const snap = await db.collection('exhibition_feedback').where('exhibition_id', '==', id).orderBy('created_at', 'desc').get();
-    const rows = snap.docs.map(d => d.data());
+    const snap = await db.collection('exhibition_feedback').where('exhibition_id', '==', id).get();
+    const rows = snap.docs
+      .sort((a, b) => ((b.data().created_at as string) ?? '').localeCompare((a.data().created_at as string) ?? ''))
+      .map(d => d.data());
     return NextResponse.json({ data: rows });
   } catch (err) {
     console.error(err);

@@ -1,8 +1,9 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
-import { db } from '@/lib/firebase-admin';
+import { authConfig } from './auth.config';
 
 export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
+  ...authConfig,
   trustHost: true,
   providers: [
     Google({
@@ -11,14 +12,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async signIn({ user }) {
       if (!user.email) return false;
-      const userDoc = await db.collection('admin_users').doc(user.email).get();
-      return userDoc.exists;
+      try {
+        const { db } = await import('@/lib/firebase-admin');
+        const userDoc = await db.collection('admin_users').doc(user.email).get();
+        return userDoc.exists;
+      } catch {
+        return false;
+      }
     },
-  },
-  pages: {
-    signIn: '/admin',
-    error: '/admin',
   },
 }));

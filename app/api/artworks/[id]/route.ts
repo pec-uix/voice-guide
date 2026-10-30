@@ -1,5 +1,5 @@
 import { auth } from '@/auth';
-import { db } from '@/lib/firebase-admin';
+import { db, batchDeletePaths } from '@/lib/firebase-admin';
 import { translateBoth } from '@/lib/gemini';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -102,17 +102,27 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     const existingDoc = await db.collection('artworks').doc(id).get();
     if (!existingDoc.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').get();
-    for (const segDoc of segsSnap.docs) {
-      const textsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').doc(segDoc.id).collection('texts').get();
-      for (const textDoc of textsSnap.docs) await textDoc.ref.delete();
-      await segDoc.ref.delete();
+    const pathsToDelete: string[] = [];
+
+    // Known translation IDs — batchWrite delete is no-op if they don't exist
+    for (const lang of ['zh-TW', 'en', 'ja']) {
+      pathsToDelete.push(`artworks/${id}/translations/${lang}`);
     }
-    const translationsSnap = await db.collection('artworks').doc(id).collection('translations').get();
-    for (const tDoc of translationsSnap.docs) await tDoc.ref.delete();
-    const eventsSnap = await db.collection('events').where('artwork_id', '==', id).get();
-    for (const eDoc of eventsSnap.docs) await eDoc.ref.delete();
-    await db.collection('artworks').doc(id).delete();
+
+    const segsSnap = await db.collection('artworks').doc(id).collection('transcript_segments').get();
+    if (segsSnap.docs.length > 0) {
+      await Promise.all(segsSnap.docs.map(async (segDoc) => {
+        const textsSnap = await db.collection('artworks').doc(id)
+          .collection('transcript_segments').doc(segDoc.id).collection('texts').get();
+        textsSnap.docs.forEach(t =>
+          pathsToDelete.push(`artworks/${id}/transcript_segments/${segDoc.id}/texts/${t.id}`)
+        );
+        pathsToDelete.push(`artworks/${id}/transcript_segments/${segDoc.id}`);
+      }));
+    }
+
+    pathsToDelete.push(`artworks/${id}`);
+    await batchDeletePaths(pathsToDelete);
 
     return NextResponse.json({ data: { deleted: true } });
   } catch (err) {

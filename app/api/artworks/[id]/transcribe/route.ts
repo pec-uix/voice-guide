@@ -26,12 +26,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const audioRes = await fetch(translation.audio_url);
+    const audioUrl = translation.audio_url as string;
+    const audioRes = await fetch(audioUrl);
     if (!audioRes.ok) throw new Error('音檔下載失敗');
     const audioBuffer = await audioRes.arrayBuffer();
 
     // Detect extension from URL for correct MIME type
-    const ext = translation.audio_url.split('.').pop()?.split('?')[0] ?? 'm4a';
+    const ext = audioUrl.split('.').pop()?.split('?')[0] ?? 'm4a';
     const mimeMap: Record<string, string> = {
       m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav',
       ogg: 'audio/ogg', webm: 'audio/webm',

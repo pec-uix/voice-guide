@@ -30,9 +30,11 @@ export default async function WorksPage({ params, searchParams }: Props) {
 
   const artworksSnap = await db.collection('artworks')
     .where('exhibition_id', '==', exhibition.id)
-    .orderBy('created_at', 'asc')
     .get();
-  const artworks = artworksSnap.docs.map(d => {
+  const artworks = artworksSnap.docs
+    .slice()
+    .sort((a, b) => ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? ''))
+    .map(d => {
     const data = d.data();
     return { id: d.id, code: data.code as string, cover_image_url: (data.cover_image_url as string) ?? null, artist: (data.artist as string) ?? null, year: (data.year as string) ?? null };
   });

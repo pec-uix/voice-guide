@@ -9,14 +9,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const artworksSnap = exhibitionId
-      ? await db.collection('artworks').where('exhibition_id', '==', exhibitionId).orderBy('created_at', 'asc').get()
+      ? await db.collection('artworks').where('exhibition_id', '==', exhibitionId).get()
       : await db.collection('artworks').orderBy('created_at', 'desc').get();
+    if (exhibitionId) {
+      artworksSnap.docs.sort((a, b) =>
+        ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? '')
+      );
+    }
 
     const rows = await Promise.all(artworksSnap.docs.map(async (doc) => {
       const artwork = doc.data();
       const tDoc = await db.collection('artworks').doc(doc.id).collection('translations').doc('zh-TW').get();
       const t = tDoc.exists ? tDoc.data()! : {};
-      return { ...artwork, title: t.title ?? null, audio_url: t.audio_url ?? null, is_reviewed: t.is_reviewed ?? null };
+      return { ...artwork, id: doc.id, title: t.title ?? null, audio_url: t.audio_url ?? null, is_reviewed: t.is_reviewed ?? null };
     }));
 
     return NextResponse.json({ data: rows });

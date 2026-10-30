@@ -51,18 +51,19 @@ export default async function ArtworkPage({ params, searchParams }: Props) {
   if (artwork.exhibition_id) {
     exhibitionId = artwork.exhibition_id;
     const exDoc = await db.collection('exhibitions').doc(artwork.exhibition_id).get();
-    exhibitionCode = exDoc.data()?.code ?? null;
+    exhibitionCode = (exDoc.data()?.code as string) ?? null;
 
     const siblingSnap = await db.collection('artworks')
       .where('exhibition_id', '==', artwork.exhibition_id)
-      .orderBy('created_at', 'asc')
       .get();
-    const siblings = siblingSnap.docs;
+    const siblings = siblingSnap.docs.slice().sort((a, b) =>
+      ((a.data().created_at as string) ?? '').localeCompare((b.data().created_at as string) ?? '')
+    );
     const idx = siblings.findIndex(d => d.id === artwork.id);
     if (idx !== -1) {
       isLastInExhibition = idx === siblings.length - 1;
-      prevCode = idx > 0 ? (siblings[idx - 1].data().code ?? null) : null;
-      nextCode = idx < siblings.length - 1 ? (siblings[idx + 1].data().code ?? null) : null;
+      prevCode = idx > 0 ? ((siblings[idx - 1].data().code as string) ?? null) : null;
+      nextCode = idx < siblings.length - 1 ? ((siblings[idx + 1].data().code as string) ?? null) : null;
     }
   }
 
