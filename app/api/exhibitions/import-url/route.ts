@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { requireAdmin } from '@/lib/verify-auth';
 import { parseExhibitionFromHtml } from '@/lib/gemini';
 import { parseNuxtExhibition, parseNuxtProductPage } from '@/lib/nuxt-parser';
 
@@ -29,8 +29,7 @@ async function fetchHtml(url: string): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!await requireAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { url } = await req.json();
   if (!url || typeof url !== 'string') {

@@ -1,4 +1,4 @@
-import { auth } from '@/auth';
+import { requireAdmin } from '@/lib/verify-auth';
 import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { LANGUAGE_CODES } from '@/lib/types';
@@ -21,8 +21,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!await requireAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id, lang } = await params;
   if (!LANGUAGE_CODES.includes(lang as never)) {

@@ -1,4 +1,4 @@
-import { auth } from '@/auth';
+import { requireAdmin } from '@/lib/verify-auth';
 import { db } from '@/lib/firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -25,9 +25,8 @@ async function geminiTranslate(text: string, targetLang: 'en'): Promise<string> 
   return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
 }
 
-export async function POST(_req: NextRequest, { params }: Params) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function POST(req: NextRequest, { params }: Params) {
+  if (!await requireAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
   try {

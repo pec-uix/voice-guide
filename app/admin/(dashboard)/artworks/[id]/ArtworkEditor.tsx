@@ -1,4 +1,5 @@
 'use client';
+import { authFetch } from '@/lib/auth-fetch';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -104,7 +105,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     if (!importUrl.trim()) return;
     setImporting(true); setImportError(''); setImportDone(false);
     try {
-      const res = await fetch('/api/artworks/import-url', {
+      const res = await authFetch('/api/artworks/import-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: importUrl.trim() }),
@@ -179,7 +180,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     if (!confirm('確定要刪除音檔嗎？')) return;
     setAudioError('');
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
+      const res = await authFetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ audio_url: null }),
@@ -197,7 +198,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       const fd = new FormData();
       fd.append('audio', audioFile);
       fd.append('lang', lang);
-      const res = await fetch(`/api/artworks/${artwork.id}/audio`, { method: 'POST', body: fd });
+      const res = await authFetch(`/api/artworks/${artwork.id}/audio`, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) { setAudioError(json.error ?? '上傳失敗'); return; }
       setAudioUrls(u => ({ ...u, [lang]: json.data.audio_url }));
@@ -229,7 +230,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     if (!text) { setAudioError('請先填入逐字稿'); return; }
     setGeneratingAudio(true); setAudioError('');
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/tts`, {
+      const res = await authFetch(`/api/artworks/${artwork.id}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, voice: ttsVoices[lang], lang }),
@@ -245,7 +246,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
   const handleTranscribe = async () => {
     setTranscribing(true);
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/transcribe`, {
+      const res = await authFetch(`/api/artworks/${artwork.id}/transcribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lang }),
@@ -265,7 +266,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
     setTSaving(s => ({ ...s, [lang]: true }));
     setTErrors(e => ({ ...e, [lang]: '' }));
     try {
-      const res = await fetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
+      const res = await authFetch(`/api/artworks/${artwork.id}/translations/${lang}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...tForms[lang], is_reviewed: markReviewed }),
@@ -307,7 +308,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
 
     try {
       // Save metadata
-      const metaRes = await fetch(`/api/artworks/${artwork.id}`, {
+      const metaRes = await authFetch(`/api/artworks/${artwork.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -332,7 +333,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         const hasContent = form.title.trim() || form.description.trim() || form.purchase_url.trim();
         if (!hasContent) continue;
 
-        const tRes = await fetch(`/api/artworks/${artwork.id}/translations/${l}`, {
+        const tRes = await authFetch(`/api/artworks/${artwork.id}/translations/${l}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form),
@@ -347,7 +348,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       if (segText.trim()) {
         const parsed = parseSegmentText(segText);
         if (parsed) {
-          const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+          const sRes = await authFetch(`/api/artworks/${artwork.id}/segments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ segments: parsed }),
@@ -361,7 +362,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
         } else {
           // Plain text: save via PATCH so it shows on the front end (synthetic timestamps)
           const zhLines = segText.trim().split('\n').filter(l => l.trim());
-          const sRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+          const sRes = await authFetch(`/api/artworks/${artwork.id}/segments`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ language_code: 'zh-TW', texts: zhLines }),
@@ -376,7 +377,7 @@ export default function ArtworkEditor({ artwork, translations, segments, exhibit
       // Save English segment texts (works even without Chinese segments)
       if (enSegText.trim()) {
         const enLines = enSegText.split('\n');
-        const eRes = await fetch(`/api/artworks/${artwork.id}/segments`, {
+        const eRes = await authFetch(`/api/artworks/${artwork.id}/segments`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ language_code: 'en', texts: enLines }),
