@@ -1,4 +1,5 @@
 'use client';
+import { authFetch } from '@/lib/auth-fetch';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -55,7 +56,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
     if (!form.code.trim() || !form.title.trim()) { setError('代碼和標題（中文）為必填'); return; }
     setSaving(true); setError('');
     try {
-      const res = await fetch('/api/artworks', {
+      const res = await authFetch('/api/artworks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -83,7 +84,7 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
   const confirmDeleteExecution = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
-    const res = await fetch(`/api/artworks/${confirmDelete.id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/artworks/${confirmDelete.id}`, { method: 'DELETE' });
     setDeleting(false);
     setConfirmDelete(null);
     if (res.ok) window.location.reload();

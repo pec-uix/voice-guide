@@ -1,4 +1,4 @@
-import { auth } from '@/auth';
+import { requireAdmin } from '@/lib/verify-auth';
 import { db } from '@/lib/firebase-admin';
 import { uploadAudio } from '@/lib/storage';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
@@ -43,8 +43,7 @@ async function gTranslateTTS(text: string, lang: string): Promise<Buffer> {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!await requireAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
 

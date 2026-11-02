@@ -1,4 +1,5 @@
 'use client';
+import { authFetch } from '@/lib/auth-fetch';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -84,7 +85,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   useEffect(() => {
     if (!editId) { setEditArtworks([]); return; }
     setEditArtworksLoading(true);
-    fetch(`/api/artworks?exhibition_id=${editId}`)
+    authFetch(`/api/artworks?exhibition_id=${editId}`)
       .then(r => r.json())
       .then(j => setEditArtworks(j.data ?? []))
       .catch(() => setEditArtworks([]))
@@ -97,7 +98,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     try {
       const fd = new FormData();
       fd.append('image', imageFile);
-      const res = await fetch(`/api/exhibitions/${id}/image`, { method: 'POST', body: fd });
+      const res = await authFetch(`/api/exhibitions/${id}/image`, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) { setImageError(json.error ?? '上傳失敗'); return; }
       setExhibitions(prev => prev.map(e =>
@@ -141,7 +142,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     if (!importUrl.trim()) return;
     setImporting(true); setImportError(''); setImportedArtworks(null); setBatchSuccess('');
     try {
-      const res = await fetch('/api/exhibitions/import-url', {
+      const res = await authFetch('/api/exhibitions/import-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: importUrl.trim() }),
@@ -167,7 +168,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     if (!form.code.trim() || !form.name.trim()) { setError('請先填入展覽代碼和名稱'); return; }
     setBatchSaving(true); setError('');
     try {
-      const res = await fetch('/api/exhibitions/batch-import', {
+      const res = await authFetch('/api/exhibitions/batch-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -199,7 +200,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     try {
       const url = editId ? `/api/exhibitions/${editId}` : '/api/exhibitions';
       const method = editId ? 'PUT' : 'POST';
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -233,7 +234,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
     try {
       // Fetch artworks if not already loaded for this exhibition
       const artworks = (exOverride && exOverride.id !== editId)
-        ? await fetch(`/api/artworks?exhibition_id=${exOverride.id}`).then(r => r.json()).then((j: { data?: ArtworkRow[] }) => j.data ?? [])
+        ? await authFetch(`/api/artworks?exhibition_id=${exOverride.id}`).then(r => r.json()).then((j: { data?: ArtworkRow[] }) => j.data ?? [])
         : editArtworks;
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
@@ -312,7 +313,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
   const confirmDeleteExecution = async () => {
     if (!confirmDelete) return;
     setDeleting(true);
-    const res = await fetch(`/api/exhibitions/${confirmDelete.id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/exhibitions/${confirmDelete.id}`, { method: 'DELETE' });
     setDeleting(false);
     setConfirmDelete(null);
     if (res.ok) window.location.reload();

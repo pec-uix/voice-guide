@@ -1,5 +1,5 @@
 import { db, batchSetDocuments } from '@/lib/firebase-admin';
-import { auth } from '@/auth';
+import { requireAdmin } from '@/lib/verify-auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface ArtworkInput {
@@ -15,8 +15,7 @@ interface ArtworkInput {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!await requireAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { code, name, name_en, description, description_en, cover_image_url, mobile_cover_image_url, artworks } = body as {
