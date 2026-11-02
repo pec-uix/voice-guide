@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       : '請將這段音檔逐字轉錄成繁體中文，標記每個句子的開始和結束時間（秒數）。只輸出以下格式的JSON陣列，不要其他說明：\n[{"start": 0.0, "end": 3.5, "text": "繁體中文文字"}]';
 
     const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
@@ -74,7 +74,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({ data: segments });
   } catch (err) {
-    console.error('Transcribe error:', err);
-    return NextResponse.json({ error: '自動辨識失敗，請稍後再試' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('Transcribe error:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
