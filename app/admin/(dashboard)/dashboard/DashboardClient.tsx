@@ -49,6 +49,47 @@ function StatCard({ label, value, desc }: { label: string; value: number; desc: 
   );
 }
 
+function escCsv(v: string | number | null | undefined): string {
+  const s = String(v ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildCsv(totals: Totals, daily: DailyRow[], langDist: LangRow[], artworkStats: ArtworkRow[], exhibitionStats: ExhibitionRow[], feedback: FeedbackRow[]): string {
+  const rows: string[] = [];
+  const row = (...cells: (string | number | null | undefined)[]) => rows.push(cells.map(escCsv).join(','));
+
+  row('=== 全站總覽 ===');
+  row('掃描 QR Code', '開始播放', '完整收聽', '點擊購買', '點擊評論');
+  row(totals.total_scans, totals.total_plays, totals.total_completes, totals.total_purchases, totals.total_reviews);
+  rows.push('');
+
+  row('=== 每日事件（近 30 天）===');
+  row('日期', '掃描', '播放', '完聽');
+  daily.forEach(d => row(d.date, d.scans, d.plays, d.completes));
+  rows.push('');
+
+  row('=== 語言分佈（掃描）===');
+  row('語言', '次數');
+  langDist.forEach(l => row(LANG_LABEL[l.language_code] ?? l.language_code, l.count));
+  rows.push('');
+
+  row('=== 作品成效排行 ===');
+  row('作品名稱', '代碼', '掃描', '播放', '完聽', '購買');
+  artworkStats.forEach(a => row(a.title, a.code, a.scans, a.plays, a.completes, a.purchases));
+  rows.push('');
+
+  row('=== 展覽概況 ===');
+  row('展覽名稱', '代碼', '入場掃描', '評論點擊', '作品件數');
+  exhibitionStats.forEach(ex => row(ex.name, ex.code, ex.entry_scans, ex.review_clicks, ex.artwork_count));
+  rows.push('');
+
+  row('=== 參觀者回饋 ===');
+  row('展覽', '星等', '評論內容', '語言', '日期');
+  feedback.forEach(f => row(f.exhibition_name, f.rating, f.comment, LANG_LABEL[f.language_code] ?? f.language_code, new Date(f.created_at).toLocaleDateString('zh-TW')));
+
+  return '﻿' + rows.join('\n'); // BOM for Excel UTF-8
+}
+
 export default function DashboardClient({ totals, daily, langDist, artworkStats, exhibitionStats, feedback }: Props) {
   const langData = langDist.map((r, i) => ({
     name: LANG_LABEL[r.language_code] ?? r.language_code,
@@ -56,9 +97,24 @@ export default function DashboardClient({ totals, daily, langDist, artworkStats,
     color: LANG_COLORS[i % LANG_COLORS.length],
   }));
 
+  const handleExport = () => {
+    const csv = buildCsv(totals, daily, langDist, artworkStats, exhibitionStats, feedback);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `voice-guide-dashboard-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-bold text-stone-900">數據總覽</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-stone-900">數據總覽</h1>
+        <button onClick={handleExport} className="btn-ghost text-sm">↓ 匯出 CSV</button>
+      </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">

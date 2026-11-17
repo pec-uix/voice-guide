@@ -412,7 +412,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
               <p className="text-sm font-medium text-blue-900 mb-1">從網址匯入（選用）</p>
               <p className="text-xs text-blue-600 mb-3">貼上展覽頁網址，自動填入展覽資料與所有作品。</p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   className="form-input flex-1 text-sm"
                   placeholder="https://www.uniart.com.tw/topics/..."
@@ -428,7 +428,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                     }
                   }}
                 />
-                <button onClick={handleImportUrl} disabled={importing || !importUrl.trim()} className="btn-primary text-sm whitespace-nowrap">
+                <button onClick={handleImportUrl} disabled={importing || !importUrl.trim()} className="btn-primary text-sm whitespace-nowrap sm:self-start">
                   {importing ? '解析中…' : '解析'}
                 </button>
               </div>
@@ -588,7 +588,7 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
           {/* Artworks for this exhibition */}
           {editId && (
             <div className="mt-8 pt-6 border-t border-stone-100">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between mb-4">
                 <h3 className="text-sm font-semibold text-stone-700">
                   作品明細
                   {editArtworks.length > 0 && (
@@ -599,12 +599,12 @@ export default function ExhibitionsClient({ exhibitions: initial }: Props) {
                   <button
                     onClick={() => handleBatchQR()}
                     disabled={batchQrLoading || editArtworks.length === 0}
-                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors disabled:opacity-40"
+                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40"
                   >
                     {batchQrLoading ? '產生中…' : '⬇ 批次下載 QR'}
                   </button>
                   <Link href={`/admin/artworks?exhibition_id=${editId}`}
-                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1 transition-colors">
+                    className="text-xs text-stone-500 hover:text-stone-800 border border-stone-200 rounded-lg px-2.5 py-1.5 transition-colors">
                     管理作品 →
                   </Link>
                 </div>

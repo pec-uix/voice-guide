@@ -1,7 +1,7 @@
 'use client';
 import { authFetch } from '@/lib/auth-fetch';
 
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -43,6 +43,53 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
   const [filter, setFilter] = useState(initialExhibitionId ?? '');
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Batch audio upload
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [batchUploading, setBatchUploading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ code: string; title: string; status: 'pending' | 'uploading' | 'done' | 'error'; error?: string }[]>([]);
+  const batchInputRef = useRef<HTMLInputElement>(null);
+
+  const { matched, unmatched } = useMemo(() => {
+    const codeMap = new Map(artworks.map(a => [a.code.toLowerCase(), a]));
+    const matched: { file: File; artwork: Artwork }[] = [];
+    const unmatched: File[] = [];
+    for (const f of batchFiles) {
+      const code = f.name.replace(/\.[^/.]+$/, '').toLowerCase();
+      const aw = codeMap.get(code);
+      if (aw) matched.push({ file: f, artwork: aw });
+      else unmatched.push(f);
+    }
+    return { matched, unmatched };
+  }, [batchFiles, artworks]);
+
+  const closeBatch = () => { setBatchOpen(false); setBatchFiles([]); setBatchProgress([]); setBatchUploading(false); };
+
+  const handleBatchUpload = async () => {
+    if (!matched.length) return;
+    setBatchUploading(true);
+    setBatchProgress(matched.map(m => ({ code: m.artwork.code, title: m.artwork.title ?? m.artwork.code, status: 'pending' as const })));
+    for (let i = 0; i < matched.length; i++) {
+      const { file, artwork } = matched[i];
+      setBatchProgress(p => p.map((item, idx) => idx === i ? { ...item, status: 'uploading' as const } : item));
+      try {
+        const fd = new FormData();
+        fd.append('audio', file);
+        fd.append('lang', 'zh-TW');
+        const res = await authFetch(`/api/artworks/${artwork.id}/audio`, { method: 'POST', body: fd });
+        if (res.ok) {
+          setBatchProgress(p => p.map((item, idx) => idx === i ? { ...item, status: 'done' as const } : item));
+        } else {
+          const json = await res.json().catch(() => ({}));
+          setBatchProgress(p => p.map((item, idx) => idx === i ? { ...item, status: 'error' as const, error: json.error ?? '上傳失敗' } : item));
+        }
+      } catch {
+        setBatchProgress(p => p.map((item, idx) => idx === i ? { ...item, status: 'error' as const, error: '網路錯誤' } : item));
+      }
+    }
+    setBatchUploading(false);
+  };
 
   const openCreate = () => { setForm(emptyForm(filter)); setError(''); setShowForm(true); };
 
@@ -119,8 +166,126 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-stone-900">作品管理</h1>
-        <button onClick={openCreate} className="btn-primary">＋ 新增作品</button>
+        <div className="flex gap-2">
+          <button onClick={() => { setBatchOpen(o => !o); setBatchFiles([]); setBatchProgress([]); }}
+            className="btn-ghost text-sm hidden sm:inline-flex">
+            ↑ 批次上傳音檔
+          </button>
+          <button onClick={openCreate} className="btn-primary">＋ 新增作品</button>
+        </div>
       </div>
+
+      {/* Batch audio upload panel */}
+      {batchOpen && (
+        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-stone-900">批次上傳音檔</h2>
+            <button onClick={closeBatch} className="text-stone-400 hover:text-stone-600 text-sm">✕ 關閉</button>
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
+            <p className="text-sm font-medium text-blue-900 mb-1.5">音檔命名規則</p>
+            <p className="text-sm text-blue-800 mb-1">每個音檔的<strong>檔名（不含副檔名）必須與作品代碼完全相符</strong>，系統才能自動配對。</p>
+            <p className="text-sm text-blue-800 mb-3">不分大小寫，支援 mp3、m4a、wav 等格式。</p>
+            {artworks.length > 0 ? (
+              <div className="bg-white rounded-lg p-3 font-mono text-xs text-stone-700 space-y-1">
+                <p className="text-stone-400 mb-1">目前作品代碼範例：</p>
+                {artworks.slice(0, 4).map(aw => (
+                  <p key={aw.id}><span className="text-green-600">{aw.code}.mp3</span><span className="text-stone-400"> → </span>{aw.title ?? aw.code}</p>
+                ))}
+                {artworks.length > 4 && <p className="text-stone-400">…共 {artworks.length} 件</p>}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg p-3 font-mono text-xs text-stone-600">
+                <p className="text-stone-400 mb-1">命名範例：</p>
+                <p><span className="text-green-600">A01.mp3</span><span className="text-stone-400"> → </span>代碼為 A01 的作品</p>
+                <p><span className="text-green-600">B02.m4a</span><span className="text-stone-400"> → </span>代碼為 B02 的作品</p>
+              </div>
+            )}
+            {filter && (
+              <p className="text-xs text-blue-600 mt-2">目前已篩選展覽，只會比對目前顯示的 {artworks.length} 件作品。</p>
+            )}
+          </div>
+
+          {/* File picker → preview → progress */}
+          {batchProgress.length === 0 ? (
+            <>
+              <input ref={batchInputRef} type="file" accept="audio/*" multiple className="hidden"
+                onChange={e => { setBatchFiles(Array.from(e.target.files ?? [])); if (batchInputRef.current) batchInputRef.current.value = ''; }} />
+              <button onClick={() => batchInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-stone-200 rounded-xl py-5 text-sm text-stone-500 hover:bg-stone-50 hover:border-stone-300 transition-colors mb-4">
+                {batchFiles.length > 0 ? `已選 ${batchFiles.length} 個檔案（點此重選）` : '點此選擇音檔（可複選）'}
+              </button>
+
+              {batchFiles.length > 0 && (
+                <>
+                  {matched.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-green-700 mb-2">✓ 配對成功 {matched.length} 件</p>
+                      <div className="space-y-1">
+                        {matched.map(({ file, artwork }) => (
+                          <div key={artwork.id} className="flex items-center gap-2 text-xs bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                            <span className="font-mono text-green-700 shrink-0">{file.name}</span>
+                            <span className="text-stone-300">→</span>
+                            <span className="text-stone-700 truncate">{artwork.title ?? artwork.code}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {unmatched.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-medium text-amber-700 mb-2">⚠ 找不到對應作品，將略過（{unmatched.length} 個）</p>
+                      <div className="space-y-1">
+                        {unmatched.map(f => (
+                          <div key={f.name} className="font-mono text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">{f.name}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {matched.length > 0 && (
+                    <button onClick={handleBatchUpload} disabled={batchUploading} className="btn-primary mt-1">
+                      開始上傳 {matched.length} 個音檔
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-stone-700 mb-3">
+                {batchUploading
+                  ? `上傳中…（${batchProgress.filter(p => p.status === 'done').length} / ${batchProgress.length}）`
+                  : `完成：${batchProgress.filter(p => p.status === 'done').length} 成功，${batchProgress.filter(p => p.status === 'error').length} 失敗`}
+              </p>
+              <div className="space-y-1.5">
+                {batchProgress.map((item, i) => (
+                  <div key={i} className={`flex items-center gap-2 text-xs rounded-lg px-3 py-2 ${
+                    item.status === 'done' ? 'bg-green-50 border border-green-100' :
+                    item.status === 'error' ? 'bg-red-50 border border-red-100' :
+                    item.status === 'uploading' ? 'bg-blue-50 border border-blue-100' :
+                    'bg-stone-50 border border-stone-100'
+                  }`}>
+                    <span className="shrink-0 w-4 text-center">
+                      {item.status === 'pending' ? '·' : item.status === 'uploading' ? '⏳' : item.status === 'done' ? '✓' : '✕'}
+                    </span>
+                    <span className="font-mono text-stone-600 shrink-0">{item.code}</span>
+                    <span className="text-stone-500 truncate">{item.title}</span>
+                    {item.error && <span className="text-red-500 ml-auto shrink-0">{item.error}</span>}
+                  </div>
+                ))}
+              </div>
+              {!batchUploading && (
+                <div className="flex gap-2 mt-4">
+                  <button onClick={closeBatch} className="btn-ghost text-sm">關閉</button>
+                  <button onClick={() => { setBatchFiles([]); setBatchProgress([]); }} className="btn-ghost text-sm">重新選擇</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filter */}
       <div className="mb-4">
@@ -194,52 +359,94 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
       {artworks.length === 0 ? (
         <p className="text-stone-400 text-sm py-12 text-center">尚無作品</p>
       ) : (
-        <div className="bg-[#faf7f2] border border-stone-200 rounded-2xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-stone-100">
-                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">代碼</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">作品名稱</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">藝術家</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">所屬展覽</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">翻譯狀態</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-50">
-              {artworks.map(aw => (
-                <tr key={aw.id} className="hover:bg-stone-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">{aw.code}</span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-stone-900">{aw.title ?? '（無標題）'}</td>
-                  <td className="px-4 py-3 text-stone-500">{aw.artist ?? '—'}</td>
-                  <td className="px-4 py-3 text-stone-500">
-                    {aw.exhibition_id
-                      ? (exhibitions.find(ex => ex.id === aw.exhibition_id)?.name ?? '—')
-                      : <span className="text-xs text-stone-300">未歸屬</span>}
-                  </td>
-                  <td className="px-4 py-3">
+        <>
+          {/* Mobile card list */}
+          <div className="md:hidden flex flex-col gap-3">
+            {artworks.map(aw => {
+              const exhibitionName = aw.exhibition_id
+                ? (exhibitions.find(ex => ex.id === aw.exhibition_id)?.name ?? '—')
+                : null;
+              return (
+                <div key={aw.id} className="bg-[#faf7f2] border border-stone-200 rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-stone-900 text-base leading-snug">{aw.title ?? '（無標題）'}</p>
+                      {aw.artist && <p className="text-sm text-stone-500 mt-0.5">{aw.artist}</p>}
+                    </div>
+                    <span className="font-mono text-xs bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">{aw.code}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500 mb-3">
+                    {exhibitionName
+                      ? <span>{exhibitionName}</span>
+                      : <span className="text-stone-300">未歸屬展覽</span>}
                     {aw.pending_count > 0 ? (
-                      <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
                         待校對 {aw.pending_count}
                       </span>
                     ) : (
-                      <span className="text-xs text-stone-400">已完成</span>
+                      <span className="text-stone-400">翻譯已完成</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 justify-end">
-                      <Link href={`/admin/artworks/${aw.id}`} className="btn-ghost text-xs">編輯</Link>
-                      <button onClick={() => handleDelete(aw.id, aw.title ?? aw.code)}
-                        className="text-xs text-red-500 hover:text-red-700">刪除</button>
-                    </div>
-                  </td>
+                  </div>
+                  <div className="flex gap-2 border-t border-stone-100 pt-3">
+                    <Link href={`/admin/artworks/${aw.id}`} className="btn-ghost text-xs flex-1 text-center">編輯</Link>
+                    <button onClick={() => handleDelete(aw.id, aw.title ?? aw.code)}
+                      className="text-xs text-red-500 hover:text-red-700 px-3 py-1.5 rounded-xl border border-red-100 hover:bg-red-50 transition-colors">
+                      刪除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-[#faf7f2] border border-stone-200 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-stone-100">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">代碼</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">作品名稱</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">藝術家</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">所屬展覽</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-stone-500">翻譯狀態</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-stone-50">
+                {artworks.map(aw => (
+                  <tr key={aw.id} className="hover:bg-stone-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded">{aw.code}</span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-stone-900">{aw.title ?? '（無標題）'}</td>
+                    <td className="px-4 py-3 text-stone-500">{aw.artist ?? '—'}</td>
+                    <td className="px-4 py-3 text-stone-500">
+                      {aw.exhibition_id
+                        ? (exhibitions.find(ex => ex.id === aw.exhibition_id)?.name ?? '—')
+                        : <span className="text-xs text-stone-300">未歸屬</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {aw.pending_count > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+                          待校對 {aw.pending_count}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-stone-400">已完成</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 justify-end">
+                        <Link href={`/admin/artworks/${aw.id}`} className="btn-ghost text-xs">編輯</Link>
+                        <button onClick={() => handleDelete(aw.id, aw.title ?? aw.code)}
+                          className="text-xs text-red-500 hover:text-red-700">刪除</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
