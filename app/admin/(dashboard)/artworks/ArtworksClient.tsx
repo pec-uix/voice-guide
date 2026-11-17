@@ -52,12 +52,12 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
   const batchInputRef = useRef<HTMLInputElement>(null);
 
   const { matched, unmatched } = useMemo(() => {
-    const codeMap = new Map(artworks.map(a => [a.code.toLowerCase(), a]));
+    const titleMap = new Map(artworks.filter(a => a.title).map(a => [a.title!.toLowerCase(), a]));
     const matched: { file: File; artwork: Artwork }[] = [];
     const unmatched: File[] = [];
     for (const f of batchFiles) {
-      const code = f.name.replace(/\.[^/.]+$/, '').toLowerCase();
-      const aw = codeMap.get(code);
+      const name = f.name.replace(/\.[^/.]+$/, '').toLowerCase();
+      const aw = titleMap.get(name);
       if (aw) matched.push({ file: f, artwork: aw });
       else unmatched.push(f);
     }
@@ -168,8 +168,8 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
         <h1 className="text-xl font-bold text-stone-900">作品管理</h1>
         <div className="flex gap-2">
           <button onClick={() => { setBatchOpen(o => !o); setBatchFiles([]); setBatchProgress([]); }}
-            className="btn-ghost text-sm hidden sm:inline-flex">
-            ↑ 批次上傳音檔
+            className="hidden sm:inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-xl bg-stone-100 text-stone-700 border border-stone-300 hover:bg-stone-200 hover:border-stone-400 transition-colors">
+            <span className="text-base leading-none">↑</span> 批次上傳音檔
           </button>
           <button onClick={openCreate} className="btn-primary">＋ 新增作品</button>
         </div>
@@ -186,21 +186,21 @@ export default function ArtworksClient({ artworks: initial, exhibitions, initial
           {/* Instructions */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5">
             <p className="text-sm font-medium text-blue-900 mb-1.5">音檔命名規則</p>
-            <p className="text-sm text-blue-800 mb-1">每個音檔的<strong>檔名（不含副檔名）必須與作品代碼完全相符</strong>，系統才能自動配對。</p>
+            <p className="text-sm text-blue-800 mb-1">每個音檔的<strong>檔名（不含副檔名）必須與作品名稱完全相符</strong>，系統才能自動配對。</p>
             <p className="text-sm text-blue-800 mb-3">不分大小寫，支援 mp3、m4a、wav 等格式。</p>
-            {artworks.length > 0 ? (
+            {artworks.filter(a => a.title).length > 0 ? (
               <div className="bg-white rounded-lg p-3 font-mono text-xs text-stone-700 space-y-1">
-                <p className="text-stone-400 mb-1">目前作品代碼範例：</p>
-                {artworks.slice(0, 4).map(aw => (
-                  <p key={aw.id}><span className="text-green-600">{aw.code}.mp3</span><span className="text-stone-400"> → </span>{aw.title ?? aw.code}</p>
+                <p className="text-stone-400 mb-1">目前作品名稱範例：</p>
+                {artworks.filter(a => a.title).slice(0, 4).map(aw => (
+                  <p key={aw.id}><span className="text-green-600">{aw.title}.mp3</span></p>
                 ))}
                 {artworks.length > 4 && <p className="text-stone-400">…共 {artworks.length} 件</p>}
               </div>
             ) : (
               <div className="bg-white rounded-lg p-3 font-mono text-xs text-stone-600">
                 <p className="text-stone-400 mb-1">命名範例：</p>
-                <p><span className="text-green-600">A01.mp3</span><span className="text-stone-400"> → </span>代碼為 A01 的作品</p>
-                <p><span className="text-green-600">B02.m4a</span><span className="text-stone-400"> → </span>代碼為 B02 的作品</p>
+                <p><span className="text-green-600">無題之境.mp3</span></p>
+                <p><span className="text-green-600">光之流動.m4a</span></p>
               </div>
             )}
             {filter && (
