@@ -7,10 +7,10 @@ runConfig:
   memoryMiB: 512
 
 env:
-  - variable: DATABASE_URL
-    secret: DATABASE_URL
+  # ── 密鑰（存在 GCP Secret Manager）──────────────────────────
+  - variable: FIREBASE_SERVICE_ACCOUNT
+    secret: FIREBASE_SERVICE_ACCOUNT
     availability:
-      - BUILD
       - RUNTIME
 
   - variable: CLOUDINARY_CLOUD_NAME
@@ -37,32 +37,45 @@ env:
       - BUILD
       - RUNTIME
 
-  - variable: GROQ_API_KEY
-    secret: GROQ_API_KEY
+  # ── 後台白名單 ────────────────────────────────────────────────
+  - variable: ADMIN_EMAILS
+    value: "ee16389@gmail.com,pec-inf-app@mail.pec.com.tw"
+    availability:
+      - RUNTIME
+
+  # ── Firebase Client SDK（公開，可直接寫在這裡）────────────────
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyB0yQY2DBlJRiLxMKue97laU1dP75D_60A"
     availability:
       - BUILD
       - RUNTIME
 
-  - variable: GOOGLE_CLIENT_ID
-    secret: GOOGLE_CLIENT_ID
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "pec-voice-guide.firebaseapp.com"
     availability:
       - BUILD
       - RUNTIME
 
-  - variable: GOOGLE_CLIENT_SECRET
-    secret: GOOGLE_CLIENT_SECRET
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "pec-voice-guide"
     availability:
       - BUILD
       - RUNTIME
 
-  - variable: NEXTAUTH_SECRET
-    secret: NEXTAUTH_SECRET
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "pec-voice-guide.firebasestorage.app"
     availability:
       - BUILD
       - RUNTIME
 
-  - variable: NEXTAUTH_URL
-    secret: NEXTAUTH_URL
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "891784966701"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:891784966701:web:744033c9388aaf1ebf7ea4"
     availability:
       - BUILD
       - RUNTIME
