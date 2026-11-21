@@ -1,5 +1,5 @@
-// Cloudflare Workers compatible Firestore client via REST API.
-// firebase-admin/firestore uses eval() which is blocked in Cloudflare Workers.
+// Firestore client via REST API.
+// Originally written for Cloudflare Workers (no eval); now also runs on Firebase App Hosting via ADC.
 
 type FsVal =
   | { nullValue: null }
@@ -66,6 +66,21 @@ let tokenExpiry = 0;
 
 async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+
+  // On Firebase App Hosting / Cloud Run: use GCP metadata server (no secret needed)
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const resp = await fetch(
+      'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+      { headers: { 'Metadata-Flavor': 'Google' } }
+    );
+    const json = await resp.json() as { access_token: string; expires_in: number };
+    if (!json.access_token) throw new Error(`ADC token error: ${JSON.stringify(json)}`);
+    cachedToken = json.access_token;
+    tokenExpiry = Date.now() + (json.expires_in - 60) * 1000;
+    return cachedToken;
+  }
+
+  // Local development: use service account key from FIREBASE_SERVICE_ACCOUNT
   const sa = JSON.parse(
     Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT!, 'base64').toString('utf-8')
   ) as { client_email: string; private_key: string };

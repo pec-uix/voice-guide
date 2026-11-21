@@ -8,11 +8,6 @@ runConfig:
 
 env:
   # ── 密鑰（存在 GCP Secret Manager）──────────────────────────
-  - variable: FIREBASE_SERVICE_ACCOUNT
-    secret: FIREBASE_SERVICE_ACCOUNT
-    availability:
-      - RUNTIME
-
   - variable: CLOUDINARY_CLOUD_NAME
     secret: CLOUDINARY_CLOUD_NAME
     availability:
