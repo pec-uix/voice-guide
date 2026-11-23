@@ -34,7 +34,7 @@ env:
 
   # ── 後台白名單 ────────────────────────────────────────────────
   - variable: ADMIN_EMAILS
-    value: "ee16389@gmail.com,pec-inf-app@mail.pec.com.tw,asd88553379@gmail.com,ian0232620a@gmail.com,onethingislove12@gmail.com,ivypeng1989@gmail.com,bobo0502@gmail.com"
+    value: "ee16389@gmail.com,pec-inf-app@mail.pec.com.tw,asd88553379@gmail.com,ian0232620a@gmail.com,onethingislove12@gmail.com,ivypeng1989@gmail.com,bobo0502@gmail.com,snlev2021@gmail.com"
     availability:
       - RUNTIME
 
