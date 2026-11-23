@@ -1,5 +1,3 @@
-import { db } from '@/lib/firebase-admin';
-
 export async function requireAdmin(req: Request): Promise<boolean> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return false;
@@ -17,6 +15,6 @@ export async function requireAdmin(req: Request): Promise<boolean> {
   const email = data.users?.[0]?.email;
   if (!email) return false;
 
-  const doc = await db.collection('admin_users').doc(email).get();
-  return doc.exists;
+  const allowedEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map(e => e.trim().toLowerCase());
+  return allowedEmails.includes(email.toLowerCase());
 }
